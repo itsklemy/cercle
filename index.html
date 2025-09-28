@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cercle – Plateforme de ressources partagées</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --text:#e5e7eb;
+      --subtext:#94a3b8;
+      --mint:#22d3ee;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.6;
+    }
+    main{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;position:relative}
+    .hero{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.1;z-index:-1}
+    .logo{font-size:40px;font-weight:900;letter-spacing:1px;margin-bottom:6px}
+    .subtitle{color:var(--subtext);margin-bottom:8px}
+    .slogan{font-weight:700;margin-bottom:24px}
+    .cta,.ghost{display:block;width:100%;padding:14px 20px;border-radius:16px;margin-top:8px;font-weight:900;text-decoration:none;text-align:center}
+    .cta{background:var(--mint);color:var(--bg);}
+    .ghost{background:none;color:var(--subtext);}
+    section{max-width:900px;margin:0 auto;padding:40px 20px}
+    h1,h2{color:var(--mint);margin-bottom:12px}
+    h1{font-size:28px}
+    h2{font-size:22px;margin-top:32px}
+    p,li{margin-bottom:12px}
+    ul{padding-left:20px}
+    .divider{border-top:1px solid #1f2a44;margin:40px 0}
+    a{color:var(--mint)}
+    footer{text-align:center;padding:20px;color:var(--subtext);font-size:14px}
+  </style>
+</head>
+<body>
+  <!-- Splash / Landing -->
+  <main>
+    <img class="hero" src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&q=80" alt="Illustration de fond">
+    <h1 class="logo">Cercle</h1>
+    <p class="subtitle">Plateforme de ressources partagées.</p>
+    <p class="slogan">« Prête, emprunte, partage. »</p>
+    <a href="#cgu" class="cta">Se connecter</a>
+    <a href="#cgu" class="ghost">Créer un compte</a>
+    <div style="margin-top:20px;font-size:14px;color:var(--subtext)">
+      <a href="#cgu">CGU</a> · <a href="#privacy">Politique de confidentialité</a> · <a href="#mentions">Mentions légales</a>
+    </div>
+  </main>
+
+  <div class="divider"></div>
+
+  <!-- CGU -->
+  <section id="cgu">
+    <h1>Conditions Générales d’Utilisation (CGU)</h1>
+    <h2>1. Mentions légales</h2>
+    <p>Application éditée par <strong>Ora Studio</strong>, SIRET 988 330 064 00011.<br/>
+    Contact : contact@orastudio.example.</p>
+
+    <h2>2. Objet</h2>
+    <p>Les présentes CGU définissent les modalités d’accès et d’utilisation de l’application <strong>Cercle</strong>.</p>
+
+    <h2>3. Fonctionnalités</h2>
+    <ul>
+      <li>Création de profil et appartenance à un cercle</li>
+      <li>Invitations sécurisées par lien</li>
+      <li>Publication et réservation d’objets/ressources</li>
+      <li>Messagerie entre membres</li>
+    </ul>
+    <p><strong>Important :</strong> aucun paiement n’est géré dans l’application. Les utilisateurs s’arrangent entre eux (Lydia, PayPal, virement).</p>
+
+    <h2>4. Responsabilité</h2>
+    <p>Ora Studio n’est pas responsable des contenus publiés ni des transactions hors de l’app. Chaque utilisateur est responsable des biens prêtés ou empruntés.</p>
+
+    <h2>5. Données personnelles</h2>
+    <p>Conformément au RGPD, l’utilisateur dispose de droits d’accès, rectification, effacement et opposition. Voir la <a href="#privacy">Politique de confidentialité</a>.</p>
+
+    <h2>6. Résiliation</h2>
+    <p>L’utilisateur peut supprimer son compte à tout moment. Ora Studio peut suspendre un compte en cas de violation des CGU.</p>
+
+    <h2>7. Droit applicable</h2>
+    <p>Droit français. Tribunaux français compétents.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Politique de confidentialité -->
+  <section id="privacy">
+    <h1>Politique de confidentialité</h1>
+
+    <h2>1. Responsable</h2>
+    <p><strong>Ora Studio</strong>, SIRET 988 330 064 00011 · contact@orastudio.example</p>
+
+    <h2>2. Données collectées</h2>
+    <ul>
+      <li>Nom, e-mail, téléphone</li>
+      <li>Photo, bio, cercles</li>
+      <li>Objets et réservations</li>
+      <li>Notifications push (si activées)</li>
+    </ul>
+    <p><strong>Aucune donnée bancaire n’est collectée.</strong></p>
+
+    <h2>3. Finalités</h2>
+    <p>Gestion des comptes, fonctionnement des cercles et objets, notifications, sécurité.</p>
+
+    <h2>4. Droits</h2>
+    <p>Droits RGPD : accès, rectification, effacement, opposition, portabilité.<br/>
+    Contact : contact@orastudio.example.<br/>
+    Réclamation possible auprès de la CNIL.</p>
+
+    <h2>5. Sécurité</h2>
+    <p>Mesures techniques et organisationnelles mises en place. L’utilisateur reste responsable de ses identifiants.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Mentions légales -->
+  <section id="mentions">
+    <h1>Mentions légales</h1>
+
+    <h2>Éditeur</h2>
+    <p><strong>Ora Studio</strong><br/>
+    SIRET : 988 330 064 00011<br/>
+    Adresse : [à compléter]<br/>
+    E-mail : contact@orastudio.example</p>
+
+    <h2>Hébergement</h2>
+    <p>Supabase (base de données) · Expo (application mobile)</p>
+
+    <h2>Propriété intellectuelle</h2>
+    <p>Le contenu de l’application Cercle est protégé. Toute reproduction sans autorisation est interdite.</p>
+
+    <h2>Responsabilité</h2>
+    <p>Ora Studio ne peut être tenue responsable des contenus externes liés.</p>
+  </section>
+
+  <div class="divider"></div>
+
+  <footer>
+    © 2025 Ora Studio – Cercle
+  </footer>
+</body>
+</html>
