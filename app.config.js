@@ -5,19 +5,29 @@ export default {
   scheme: "cercle",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/icon.png",
+  icon: "./assets/logo.png",
   userInterfaceStyle: "automatic",
   updates: { fallbackToCacheTimeout: 0 },
   assetBundlePatterns: ["**/*"],
+
   ios: {
     supportsTablet: true,
-    bundleIdentifier: "com.cercle.app" // <-- IMPORTANT
+    bundleIdentifier: "com.cercle.app", // <-- IMPORTANT
+    buildNumber: "11" // <-- incrémente à chaque soumission
+    // ⚠️ NSContactsUsageDescription retiré car pas utilisé
   },
+
   android: {
-    adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundColor: "#141827" },
+    adaptiveIcon: {
+      foregroundImage: "./assets/adaptive-icon.png",
+      backgroundColor: "#141827"
+    },
     package: "com.cercle.app"
+    // ⚠️ "READ_CONTACTS" retiré car pas utilisé
   },
+
   web: { bundler: "metro" },
+
   extra: {
     SUPABASE_URL: process.env.SUPABASE_URL || "https://omfvrlcelpxoguonqzbb.supabase.co",
     SUPABASE_ANON_KEY:
@@ -30,6 +40,7 @@ export default {
       projectId: "4de9ab1e-5c50-4931-b7a7-8c47a38d9f10" // <-- IMPORTANT
     }
   },
+
   plugins: [
     [
       "expo-notifications",
