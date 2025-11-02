@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		2FCD05F4127B755658513196 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7E08210A782036B786B4516A /* PrivacyInfo.xcprivacy */; };
+		177CDE0BFF01D878F6D4C3B5 /* libPods-Cercle.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 42BADA27C39DD286BD9326C8 /* libPods-Cercle.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		4CC924853E2F224C1C4B1749 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26446A4783D05551493F8F14 /* ExpoModulesProvider.swift */; };
-		A2442C793C472BCA154BF300 /* libPods-Cercle.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C03C53B18370AC4ECD5079CC /* libPods-Cercle.a */; };
+		AE32548CFA2558E1274D4B9C /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C4AE92D4DDC66CF9BA0D4E /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		F0B001B92EC47663D5066A7E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D6A226F0EFB44D10D8263E25 /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,13 +20,13 @@
 		13B07F961A680F5B00A75B9A /* Cercle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cercle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Cercle/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Cercle/Info.plist; sourceTree = "<group>"; };
-		26446A4783D05551493F8F14 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Cercle/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		7176DF9EC1A556B48A6C5284 /* Pods-Cercle.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Cercle.release.xcconfig"; path = "Target Support Files/Pods-Cercle/Pods-Cercle.release.xcconfig"; sourceTree = "<group>"; };
-		7E08210A782036B786B4516A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Cercle/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		42BADA27C39DD286BD9326C8 /* libPods-Cercle.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Cercle.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		61C4AE92D4DDC66CF9BA0D4E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Cercle/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		8428160117F287D0E53512F7 /* Pods-Cercle.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Cercle.release.xcconfig"; path = "Target Support Files/Pods-Cercle/Pods-Cercle.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Cercle/SplashScreen.storyboard; sourceTree = "<group>"; };
-		BAAA2A3D52CAC799C0D22220 /* Pods-Cercle.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Cercle.debug.xcconfig"; path = "Target Support Files/Pods-Cercle/Pods-Cercle.debug.xcconfig"; sourceTree = "<group>"; };
+		AF9D5EFE06F383D0AC310463 /* Pods-Cercle.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Cercle.debug.xcconfig"; path = "Target Support Files/Pods-Cercle/Pods-Cercle.debug.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C03C53B18370AC4ECD5079CC /* libPods-Cercle.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Cercle.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D6A226F0EFB44D10D8263E25 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Cercle/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Cercle/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Cercle-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Cercle-Bridging-Header.h"; path = "Cercle/Cercle-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A2442C793C472BCA154BF300 /* libPods-Cercle.a in Frameworks */,
+				177CDE0BFF01D878F6D4C3B5 /* libPods-Cercle.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				7E08210A782036B786B4516A /* PrivacyInfo.xcprivacy */,
+				D6A226F0EFB44D10D8263E25 /* PrivacyInfo.xcprivacy */,
 			);
 			name = Cercle;
 			sourceTree = "<group>";
@@ -62,7 +62,7 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				C03C53B18370AC4ECD5079CC /* libPods-Cercle.a */,
+				42BADA27C39DD286BD9326C8 /* libPods-Cercle.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -81,8 +81,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				BF18DBFBFE60F8E2E2A383AE /* Pods */,
-				94F405CC982A54F9B7B299AE /* ExpoModulesProviders */,
+				AC9F250CD749D606A3CA861A /* Pods */,
+				D2AC6DF0699DC6BAD6268124 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -97,20 +97,13 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		85D4C020E820920E9B29702B /* Cercle */ = {
+		AC9F250CD749D606A3CA861A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				26446A4783D05551493F8F14 /* ExpoModulesProvider.swift */,
+				AF9D5EFE06F383D0AC310463 /* Pods-Cercle.debug.xcconfig */,
+				8428160117F287D0E53512F7 /* Pods-Cercle.release.xcconfig */,
 			);
-			name = Cercle;
-			sourceTree = "<group>";
-		};
-		94F405CC982A54F9B7B299AE /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				85D4C020E820920E9B29702B /* Cercle */,
-			);
-			name = ExpoModulesProviders;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -122,13 +115,20 @@
 			path = Cercle/Supporting;
 			sourceTree = "<group>";
 		};
-		BF18DBFBFE60F8E2E2A383AE /* Pods */ = {
+		D2AC6DF0699DC6BAD6268124 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				BAAA2A3D52CAC799C0D22220 /* Pods-Cercle.debug.xcconfig */,
-				7176DF9EC1A556B48A6C5284 /* Pods-Cercle.release.xcconfig */,
+				D5436CD73CF8A3F0CC9943CA /* Cercle */,
 			);
-			path = Pods;
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
+		D5436CD73CF8A3F0CC9943CA /* Cercle */ = {
+			isa = PBXGroup;
+			children = (
+				61C4AE92D4DDC66CF9BA0D4E /* ExpoModulesProvider.swift */,
+			);
+			name = Cercle;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -139,13 +139,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Cercle" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				0A78CCBD0A1162B6D8CB304A /* [Expo] Configure project */,
+				120980C8E5CD2B43C51A22B5 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				60828F1108E21F51209DE844 /* [CP] Embed Pods Frameworks */,
+				EAE26AF88CC0D8D72FD206BA /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -195,7 +195,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				2FCD05F4127B755658513196 /* PrivacyInfo.xcprivacy in Resources */,
+				F0B001B92EC47663D5066A7E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,7 +239,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		0A78CCBD0A1162B6D8CB304A /* [Expo] Configure project */ = {
+		120980C8E5CD2B43C51A22B5 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -257,24 +257,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Cercle/expo-configure-project.sh\"\n";
-		};
-		60828F1108E21F51209DE844 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -314,6 +296,24 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		EAE26AF88CC0D8D72FD206BA /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -322,7 +322,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				4CC924853E2F224C1C4B1749 /* ExpoModulesProvider.swift in Sources */,
+				AE32548CFA2558E1274D4B9C /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -331,19 +331,18 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = BAAA2A3D52CAC799C0D22220 /* Pods-Cercle.debug.xcconfig */;
+			baseConfigurationReference = AF9D5EFE06F383D0AC310463 /* Pods-Cercle.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = HM95CV96WV;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = Cercle/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -366,14 +365,13 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7176DF9EC1A556B48A6C5284 /* Pods-Cercle.release.xcconfig */;
+			baseConfigurationReference = 8428160117F287D0E53512F7 /* Pods-Cercle.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = HM95CV96WV;
 				INFOPLIST_FILE = Cercle/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
