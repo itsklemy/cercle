@@ -4,8 +4,14 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'reac
 import { colors } from '../theme/colors';
 import { supabase } from '../lib/supabase';
 import OffPlatformPayment from '../components/OffPlatformPayment';
+import { useResponsive } from '../hooks/useResponsive';
 
-export default function ItemDetailScreen({ route, navigation }){
+
+
+export default async function ItemDetailScreen({ route, navigation }){
+  const { isIPad, isTablet, columns, scale, horizontalRegular } = useResponsive();
+const cardWidth = `calc(100% / ${columns})`;
+
   const initialItem = route?.params?.item || {};
   const [item, setItem] = useState(initialItem);
 
@@ -17,6 +23,7 @@ export default function ItemDetailScreen({ route, navigation }){
   const [busyLabel, setBusyLabel] = useState(null);
 
   const [itemReservation, setItemReservation] = useState(null);
+  
 
   // charge l'utilisateur courant, la réservation courante (si tu es concerné), et l'état "occupé"
   useEffect(() => {
@@ -130,6 +137,14 @@ export default function ItemDetailScreen({ route, navigation }){
       Alert.alert('Erreur', e.message || 'Impossible de mettre à jour la disponibilité.');
     }
   };
+// récupérer la dispo
+const { data } = await supabase
+  .from('items')
+  .select('*, item_availability!inner(is_available)')
+  .eq('id', itemId)
+  .maybeSingle();
+
+const isAvailable = !!data?.item_availability?.is_available;
 
   return (
     <View style={styles.container}>

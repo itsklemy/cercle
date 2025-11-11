@@ -1,13 +1,11 @@
 export const colors = {
-  bg: '#0d111d',
-  card: '#12172a',
-  text: '#f3f5ff',
-  subtext: '#9aa3b2',
-  stroke: '#252a3f',
-  mint: '#57ffca',
-  sky: '#7ecbff',
-  rose: '#ff7b93',
-  success: '#44d19f',
-  danger: '#ff6b6b',
-  warning: '#ffcc66'
+  bg: '#0f1627', // Fond principal sombre
+  card: '#1b2130', // Fonds des cartes
+  text: '#ffffff', // Texte principal
+  subtext: '#b0b0b0', // Texte secondaire
+  stroke: '#2a3b57', // Bordures
+  mint: '#57ffca', // Accent vert
+  warning: '#ffa500', // Avertissement
+  danger: '#ff6b6b', // Erreur
+  success: '#4caf50', // Succès
 };
