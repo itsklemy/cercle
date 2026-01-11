@@ -7,27 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0FDE6773266A12F842F4665B /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3FD9F48874543A2878193A /* ExpoModulesProvider.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		810A0223EEC09BA9BBD0D151 /* libPods-Cercle.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 176F8342C55B0A66823F7538 /* libPods-Cercle.a */; };
+		8785856EFC6C1F01161A5924 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DF4636FB608C92BA28DD7F53 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		BEA85AB3D1C660A88D3FFFA9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EFDD4DFD64604B6B3BD7744E /* PrivacyInfo.xcprivacy */; };
-		EBCBE6AB93EA3168B45EF674 /* libPods-CercleDev.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E71864EEA3FED649311B94EC /* libPods-CercleDev.a */; };
+		D0ADB25D93121E47D1EFABBB /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F4352976AE8ECC29B9487AF /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		13B07F961A680F5B00A75B9A /* CercleDev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CercleDev.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07F961A680F5B00A75B9A /* Cercle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cercle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CercleDev/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CercleDev/Info.plist; sourceTree = "<group>"; };
-		2E3FD9F48874543A2878193A /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-CercleDev/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		9F2F83E99631A2865A4118F1 /* Pods-CercleDev.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CercleDev.release.xcconfig"; path = "Target Support Files/Pods-CercleDev/Pods-CercleDev.release.xcconfig"; sourceTree = "<group>"; };
+		176F8342C55B0A66823F7538 /* libPods-Cercle.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Cercle.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		17DC5B671882DC383F750A8F /* Pods-CercleDev.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CercleDev.debug.xcconfig"; path = "Target Support Files/Pods-CercleDev/Pods-CercleDev.debug.xcconfig"; sourceTree = "<group>"; };
+		33DE5C6DC62BA8F381B6DE74 /* Pods-Cercle.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Cercle.debug.xcconfig"; path = "Target Support Files/Pods-Cercle/Pods-Cercle.debug.xcconfig"; sourceTree = "<group>"; };
+		7F4352976AE8ECC29B9487AF /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Cercle/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = CercleDev/SplashScreen.storyboard; sourceTree = "<group>"; };
+		AD68CE724E56456E361524F8 /* Pods-Cercle.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Cercle.release.xcconfig"; path = "Target Support Files/Pods-Cercle/Pods-Cercle.release.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		DB0FD4F912E0F9BDFBC73A85 /* Pods-CercleDev.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CercleDev.debug.xcconfig"; path = "Target Support Files/Pods-CercleDev/Pods-CercleDev.debug.xcconfig"; sourceTree = "<group>"; };
-		E71864EEA3FED649311B94EC /* libPods-CercleDev.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CercleDev.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CBA918E1771DFA6B032E7542 /* Pods-CercleDev.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CercleDev.release.xcconfig"; path = "Target Support Files/Pods-CercleDev/Pods-CercleDev.release.xcconfig"; sourceTree = "<group>"; };
+		DF4636FB608C92BA28DD7F53 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = CercleDev/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		EFDD4DFD64604B6B3BD7744E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = CercleDev/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = CercleDev/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* CercleDev-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "CercleDev-Bridging-Header.h"; path = "CercleDev/CercleDev-Bridging-Header.h"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -37,7 +39,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EBCBE6AB93EA3168B45EF674 /* libPods-CercleDev.a in Frameworks */,
+				810A0223EEC09BA9BBD0D151 /* libPods-Cercle.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,27 +55,34 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				EFDD4DFD64604B6B3BD7744E /* PrivacyInfo.xcprivacy */,
+				DF4636FB608C92BA28DD7F53 /* PrivacyInfo.xcprivacy */,
 			);
 			name = CercleDev;
-			sourceTree = "<group>";
-		};
-		25D360E2B3D7233578FDABC0 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				DB0FD4F912E0F9BDFBC73A85 /* Pods-CercleDev.debug.xcconfig */,
-				9F2F83E99631A2865A4118F1 /* Pods-CercleDev.release.xcconfig */,
-			);
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				E71864EEA3FED649311B94EC /* libPods-CercleDev.a */,
+				176F8342C55B0A66823F7538 /* libPods-Cercle.a */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		39E7D79CB64CDF9EBF89DE0F /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				72836BEB58DE87E7944BD1F4 /* Cercle */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
+		72836BEB58DE87E7944BD1F4 /* Cercle */ = {
+			isa = PBXGroup;
+			children = (
+				7F4352976AE8ECC29B9487AF /* ExpoModulesProvider.swift */,
+			);
+			name = Cercle;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -90,8 +99,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				25D360E2B3D7233578FDABC0 /* Pods */,
-				92DA33996ED68A70920B8940 /* ExpoModulesProviders */,
+				9D115A7BE29C27CF62535A1C /* Pods */,
+				39E7D79CB64CDF9EBF89DE0F /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -101,17 +110,20 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* CercleDev.app */,
+				13B07F961A680F5B00A75B9A /* Cercle.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		92DA33996ED68A70920B8940 /* ExpoModulesProviders */ = {
+		9D115A7BE29C27CF62535A1C /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				D139DDE1A1E506B3CAE1A051 /* CercleDev */,
+				17DC5B671882DC383F750A8F /* Pods-CercleDev.debug.xcconfig */,
+				CBA918E1771DFA6B032E7542 /* Pods-CercleDev.release.xcconfig */,
+				33DE5C6DC62BA8F381B6DE74 /* Pods-Cercle.debug.xcconfig */,
+				AD68CE724E56456E361524F8 /* Pods-Cercle.release.xcconfig */,
 			);
-			name = ExpoModulesProviders;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -123,37 +135,29 @@
 			path = CercleDev/Supporting;
 			sourceTree = "<group>";
 		};
-		D139DDE1A1E506B3CAE1A051 /* CercleDev */ = {
-			isa = PBXGroup;
-			children = (
-				2E3FD9F48874543A2878193A /* ExpoModulesProvider.swift */,
-			);
-			name = CercleDev;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* CercleDev */ = {
+		13B07F861A680F5B00A75B9A /* Cercle */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "CercleDev" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Cercle" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				C63CEED372F5B8CD975AD4A4 /* [Expo] Configure project */,
+				046159BB3E47D9E36163217D /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				CA2389277C983C0DE53A1B28 /* [CP] Embed Pods Frameworks */,
+				6B169A16BBC2A69C48C22C10 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = CercleDev;
+			name = Cercle;
 			productName = CercleDev;
-			productReference = 13B07F961A680F5B00A75B9A /* CercleDev.app */;
+			productReference = 13B07F961A680F5B00A75B9A /* Cercle.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -182,7 +186,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* CercleDev */,
+				13B07F861A680F5B00A75B9A /* Cercle */,
 			);
 		};
 /* End PBXProject section */
@@ -195,7 +199,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				BEA85AB3D1C660A88D3FFFA9 /* PrivacyInfo.xcprivacy in Resources */,
+				8785856EFC6C1F01161A5924 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -219,6 +223,30 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n`\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
+		046159BB3E47D9E36163217D /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/CercleDev/CercleDev.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-Cercle/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-Cercle/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Cercle/expo-configure-project.sh\"\n";
+		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -234,11 +262,33 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-CercleDev-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-Cercle-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		6B169A16BBC2A69C48C22C10 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
@@ -247,7 +297,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-CercleDev/Pods-CercleDev-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
@@ -280,53 +330,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CercleDev/Pods-CercleDev-resources.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		C63CEED372F5B8CD975AD4A4 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/CercleDev/CercleDev.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-CercleDev/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-CercleDev/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-CercleDev/expo-configure-project.sh\"\n";
-		};
-		CA2389277C983C0DE53A1B28 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-CercleDev/Pods-CercleDev-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-CercleDev/Pods-CercleDev-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Cercle/Pods-Cercle-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -337,7 +341,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				0FDE6773266A12F842F4665B /* ExpoModulesProvider.swift in Sources */,
+				D0ADB25D93121E47D1EFABBB /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -346,7 +350,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = DB0FD4F912E0F9BDFBC73A85 /* Pods-CercleDev.debug.xcconfig */;
+			baseConfigurationReference = 33DE5C6DC62BA8F381B6DE74 /* Pods-Cercle.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -358,7 +362,7 @@
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = CercleDev/Info.plist;
+				INFOPLIST_FILE = Cercle/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -371,8 +375,8 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.cercle.dev;
-				PRODUCT_NAME = CercleDev;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cercle.app;
+				PRODUCT_NAME = Cercle;
 				SWIFT_OBJC_BRIDGING_HEADER = "CercleDev/CercleDev-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -383,14 +387,14 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9F2F83E99631A2865A4118F1 /* Pods-CercleDev.release.xcconfig */;
+			baseConfigurationReference = AD68CE724E56456E361524F8 /* Pods-Cercle.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = CercleDev/CercleDev.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HM95CV96WV;
-				INFOPLIST_FILE = CercleDev/Info.plist;
+				INFOPLIST_FILE = Cercle/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -403,8 +407,8 @@
 					"-lc++",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
-				PRODUCT_BUNDLE_IDENTIFIER = com.cercle.dev;
-				PRODUCT_NAME = CercleDev;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cercle.app;
+				PRODUCT_NAME = Cercle;
 				SWIFT_OBJC_BRIDGING_HEADER = "CercleDev/CercleDev-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -533,7 +537,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "CercleDev" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Cercle" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
