@@ -1,4 +1,4 @@
-package com.cercle.dev
+package com.cercle.app
 
 import android.app.Application
 import android.content.res.Configuration

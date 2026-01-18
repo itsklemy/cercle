@@ -1,4 +1,4 @@
-package com.cercle.dev
+package com.cercle.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build
