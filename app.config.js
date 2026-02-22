@@ -129,10 +129,9 @@ export default ({ config }) => {
       };
 
   // Plugins communs (deploymentTarget iOS fixé ici)
-  const commonPlugins = [
+    const commonPlugins = [
     ["expo-build-properties", { ios: { deploymentTarget: "15.1" } }],
 
-    // ⚠️ IMPORTANT : ne pas mettre image: null (ça casse le fingerprint EAS)
     [
       "expo-splash-screen",
       {
@@ -142,11 +141,15 @@ export default ({ config }) => {
       },
     ],
 
+    // ✅ requis pour lier correctement le module natif
+    "@react-native-community/datetimepicker",
+
     "expo-contacts",
     "expo-image-picker",
     "expo-font",
   ];
 
+  
   base.plugins = isDev
     ? ["expo-dev-client", ...commonPlugins]
     : [

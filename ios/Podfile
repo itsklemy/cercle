@@ -7,7 +7,7 @@ podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties
 def ccache_enabled?(podfile_properties)
   # Environment variable takes precedence
   return ENV['USE_CCACHE'] == '1' if ENV['USE_CCACHE']
-
+  
   # Fall back to Podfile properties
   podfile_properties['apple.ccacheEnabled'] == 'true'
 end
@@ -24,10 +24,13 @@ target 'Cercle' do
   use_expo_modules!
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
-    config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"]
+    config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else
     config_command = [
-      'npx',
+      'node',
+      '--no-warnings',
+      '--eval',
+      'require(\'expo/bin/autolinking\')',
       'expo-modules-autolinking',
       'react-native-config',
       '--json',
@@ -56,27 +59,5 @@ target 'Cercle' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
-
-    # ---- Fix: Xcode User Script Sandboxing (Sandbox: find deny file-read-data) ----
-    # Apply to Pods project
-    installer.pods_project.targets.each do |t|
-      t.build_configurations.each do |bc|
-        bc.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-      end
-    end
-
-    # Apply to the user (app) project as well
-    installer.aggregate_targets.each do |aggregate_target|
-      user_project = aggregate_target.user_project
-      next unless user_project
-
-      user_project.targets.each do |t|
-        t.build_configurations.each do |bc|
-          bc.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-        end
-      end
-
-      user_project.save
-    end
   end
 end
