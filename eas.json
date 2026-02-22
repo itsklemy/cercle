@@ -5,7 +5,7 @@
   },
   "build": {
     "development": {
-      "node": "20.18.0",
+      "node": "20.19.4",
       "developmentClient": true,
       "distribution": "internal",
       "channel": "dev",
@@ -17,7 +17,7 @@
       }
     },
     "preview": {
-      "node": "20.18.0",
+      "node": "20.19.4",
       "distribution": "internal",
       "channel": "preview",
       "environment": "preview",
@@ -28,7 +28,7 @@
       }
     },
     "production": {
-      "node": "20.18.0",
+      "node": "20.19.4",
       "channel": "production",
       "environment": "production",
       "env": {
