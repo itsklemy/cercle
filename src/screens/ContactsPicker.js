@@ -1,87 +1,198 @@
 // src/screens/ContactsPicker.js
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import * as Contacts from 'expo-contacts';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
-import { colors } from '../theme/colors';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+} from "react-native";
+import * as Contacts from "expo-contacts";
+import * as Linking from "expo-linking";
+import { useRoute, useNavigation } from "@react-navigation/native";
+import { colors } from "../theme/colors";
+import { inviteContactsBulk } from "../utils/invite"; // ✅ on réutilise TON invite.js
 
 export default function ContactsPicker() {
   const route = useRoute();
   const navigation = useNavigation();
-  const circleId = route?.params?.circleId;
+  const circleId = route?.params?.circleId ? String(route.params.circleId) : null;
+
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(new Set());
+  const [q, setQ] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const normalizePhone = (s = "") =>
+    String(s).replace(/[^\d+]/g, "").replace(/^00/, "+");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== Contacts.PermissionStatus.GRANTED) {
-        Alert.alert('Contacts', 'Autorise l’accès aux contacts dans les réglages.');
-        navigation.goBack();
+      // 1) On check d’abord l’état actuel
+      const perm = await Contacts.getPermissionsAsync();
+
+      // 2) Si déjà OK -> on charge
+      if (perm.status === "granted") {
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+          pageSize: 2000,
+        });
+        setItems(data || []);
         return;
       }
-      const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers],
-        pageSize: 3000,
-        sort: 'firstName',
-      });
-      const rows = (data || [])
-        .map(c => ({
-          id: c.id,
-          name: c.name || [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Sans nom',
-          phone: (c.phoneNumbers?.[0]?.number || '').replace(/\s+/g, ''),
-        }))
-        .filter(x => !!x.phone);
-      setItems(rows);
+
+      // 3) Si on peut redemander -> on demande
+      if (perm.canAskAgain) {
+        const req = await Contacts.requestPermissionsAsync();
+        if (req.status === "granted") {
+          const { data } = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+            pageSize: 2000,
+          });
+          setItems(data || []);
+          return;
+        }
+      }
+
+      // 4) Refus définitif -> réglages
+      Alert.alert(
+        "Accès aux contacts",
+        "Tu as refusé l’accès aux contacts. Pour inviter depuis ton répertoire, active Contacts dans les Réglages iPhone.",
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Ouvrir Réglages",
+            onPress: async () => {
+              try {
+                await Linking.openSettings();
+              } catch {
+                Alert.alert("Réglages", "Impossible d’ouvrir les réglages automatiquement.");
+              }
+            },
+          },
+        ]
+      );
+
+      setItems([]);
+    } catch (e) {
+      console.warn("[ContactsPicker] load error", e?.message || e);
+      Alert.alert("Contacts", "Impossible de charger les contacts.");
+      setItems([]);
     } finally {
       setLoading(false);
     }
-  }, [navigation]);
+  }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const mapped = useMemo(() => {
+    // On transforme en lignes “contact + premier numéro”
+    const list = (items || [])
+      .map((c) => {
+        const phoneRaw = c?.phoneNumbers?.[0]?.number || "";
+        const phone = normalizePhone(phoneRaw);
+        if (!phone) return null;
+        return {
+          id: String(c.id),
+          name: c?.name || "Contact",
+          phone,
+        };
+      })
+      .filter(Boolean);
+
+    const qq = q.trim().toLowerCase();
+    if (!qq) return list;
+
+    return list.filter((x) => {
+      return (
+        String(x.name || "").toLowerCase().includes(qq) ||
+        String(x.phone || "").includes(qq)
+      );
+    });
+  }, [items, q]);
 
   const toggle = (id) => {
     setSelected((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id); else n.add(id);
-      return n;
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
   const save = async () => {
-    if (!circleId) { Alert.alert('Cercle', 'Aucun cercle.'); return; }
-    const picks = items.filter(i => selected.has(i.id));
-    if (picks.length === 0) { Alert.alert('Contacts', 'Sélectionne au moins un contact.'); return; }
+    if (!circleId) return Alert.alert("Erreur", "ID du cercle manquant.");
 
-    // ⚠️ Exemple : on appelle une RPC (à implémenter) qui :
-    // - mappe phone -> user_id si déjà inscrit
-    // - sinon crée une "invitation" et un user placeholder
-    // - insère dans circle_members (circle_id, user_id)
+    const picks = mapped.filter((i) => selected.has(i.id));
+    if (!picks.length) return Alert.alert("Sélection", "Sélectionne au moins une personne.");
+
+    setSaving(true);
     try {
-      const payload = picks.map(p => ({ name: p.name, phone: p.phone }));
-      const { error } = await supabase.rpc('add_contacts_to_circle', { circle_id_input: circleId, contacts_input: payload });
-      if (error) throw error;
-      Alert.alert('Contacts', 'Membres ajoutés (ou invités).');
+      // ✅ on envoie EXACTEMENT le format attendu par ton invite.js: [{name, phone}]
+      const contactsPayload = picks.map((p) => ({ name: p.name, phone: p.phone }));
+
+      // RPC bulk (dans ton invite.js) => add_contacts_to_circle(p_circle_id, p_contacts)
+      const res = await inviteContactsBulk({
+        circleId,
+        contacts: contactsPayload,
+      });
+
+      // res peut contenir des urls par contact selon ta RPC
+      Alert.alert("Succès", "Invitations générées ✅");
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Contacts', e.message || 'Ajout impossible.');
+      console.warn("[ContactsPicker] save error", e?.message || e);
+      Alert.alert("Erreur", e?.message || "Impossible d’ajouter/inviter ces contacts.");
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+      <Text style={{ color: colors.text, fontWeight: "900", fontSize: 18, marginBottom: 10 }}>
+        Ajouter des contacts
+      </Text>
+
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          borderWidth: 1,
+          borderColor: colors.stroke,
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          backgroundColor: "#151826",
+          marginBottom: 10,
+        }}
+      >
+        <TextInput
+          value={q}
+          onChangeText={setQ}
+          placeholder="Rechercher un nom ou un numéro…"
+          placeholderTextColor={colors.subtext}
+          style={{ flex: 1, color: colors.text, fontWeight: "700" }}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
           <ActivityIndicator />
           <Text style={{ color: colors.subtext, marginTop: 8 }}>Chargement…</Text>
         </View>
       ) : (
         <>
           <FlatList
-            data={items}
+            data={mapped}
             keyExtractor={(it) => it.id}
             renderItem={({ item }) => {
               const isSel = selected.has(item.id);
@@ -90,25 +201,56 @@ export default function ContactsPicker() {
                   onPress={() => toggle(item.id)}
                   style={{
                     paddingVertical: 12,
-                    paddingHorizontal: 10,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    marginBottom: 8,
-                    backgroundColor: isSel ? 'rgba(29,255,194,0.12)' : 'transparent',
+                    borderBottomWidth: 1,
+                    borderBottomColor: "rgba(255,255,255,0.06)",
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
+                  activeOpacity={0.9}
                 >
-                  <Text style={{ color: colors.text, fontWeight: '800' }}>{item.name}</Text>
-                  <Text style={{ color: colors.subtext, marginTop: 2 }}>{item.phone}</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ color: colors.text, fontWeight: "800" }} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={{ color: colors.subtext }} numberOfLines={1}>
+                      {item.phone}
+                    </Text>
+                  </View>
+                  <Text style={{ color: isSel ? colors.mint : colors.subtext, fontWeight: "900", fontSize: 18 }}>
+                    {isSel ? "✓" : "＋"}
+                  </Text>
                 </TouchableOpacity>
               );
             }}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 20 }}>
+                <Text style={{ color: colors.subtext }}>
+                  Aucun contact avec numéro trouvé (ou permission refusée).
+                </Text>
+              </View>
+            }
           />
+
           <TouchableOpacity
             onPress={save}
-            style={{ backgroundColor: colors.mint, paddingVertical: 12, borderRadius: 12, marginTop: 8 }}
+            disabled={saving}
+            style={{
+              backgroundColor: colors.mint,
+              paddingVertical: 14,
+              borderRadius: 12,
+              marginTop: 10,
+              opacity: saving ? 0.7 : 1,
+            }}
+            activeOpacity={0.9}
           >
-            <Text style={{ color: colors.bg, textAlign: 'center', fontWeight: '900' }}>Ajouter au cercle</Text>
+            {saving ? (
+              <ActivityIndicator color={colors.bg} />
+            ) : (
+              <Text style={{ color: colors.bg, textAlign: "center", fontWeight: "900" }}>
+                Inviter / Ajouter au cercle
+              </Text>
+            )}
           </TouchableOpacity>
         </>
       )}

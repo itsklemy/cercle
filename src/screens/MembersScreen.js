@@ -1,289 +1,483 @@
-import React, { useEffect, useMemo, useState } from 'react';
+// src/screens/MembersScreen.js
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView,
-  KeyboardAvoidingView, Platform
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
-import { supabase, hasSupabaseConfig } from '../lib/supabase';
-import { useResponsive } from '../hooks/useResponsive';
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  TextInput,
+  FlatList,
+  Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as Contacts from "expo-contacts";
+import * as Linking from "expo-linking";
 
+import { colors } from "../theme/colors";
+import { supabase, hasSupabaseConfig } from "../lib/supabase";
+import { inviteContactToCircle } from "../utils/invite";
 
-const CATEGORIES = [
-  { key:'numerique',  label:'Numérique' },
-  { key:'abonnement', label:'Abonnements' },
-  { key:'cuisine',    label:'Cuisine' },
-  { key:'brico',      label:'Travaux manuels' },
-  { key:'musique',    label:'Musique' },
-  { key:'livres',     label:'Livres' },
-  { key:'sport',      label:'Sport' },
-  { key:'vehicules',  label:'Véhicules' },
-  { key:'travaux',    label:'Travaux' },
-  { key:'enfants',    label:'Enfants' },
-  { key:'events',     label:'Événements' },
-  { key:'it',         label:'Informatique' },
-  { key:'local',      label:'Local' },
-  { key:'parking',    label:'Garage / Parking' },
-  { key:'autres',     label:'Autres' },
-];
+export default function MembersScreen({ route, navigation }) {
+  const circleId = route?.params?.circleId ? String(route.params.circleId) : null;
 
-export default function AddItemScreen({ route, navigation }){
-  const initialCircleId = route?.params?.circleId ?? null;
-  const editItem = route?.params?.editItem || route?.params?.edit || null;
-const { isIPad, isTablet, columns, scale, horizontalRegular } = useResponsive();
-const cardWidth = `calc(100% / ${columns})`;
   const [loading, setLoading] = useState(true);
-  const [circles, setCircles] = useState([]);
-  const [circleId, setCircleId] = useState(initialCircleId);
+  const [tab, setTab] = useState("members"); // members | add
 
-  const [title, setTitle] = useState(editItem?.title || '');
-  const [desc, setDesc] = useState(editItem?.description || '');
-  const [category, setCategory] = useState(editItem?.category || 'autres');
-  const [maxDays, setMaxDays] = useState(editItem?.max_days ? String(editItem.max_days) : '');
+  const [members, setMembers] = useState([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [q, setQ] = useState("");
+  const [inviting, setInviting] = useState(null); // phone string
 
-  // tarifs intelligents
-  const [costAmount, setCostAmount] = useState(''); // coût pour toi
-  const [costPeriod, setCostPeriod] = useState('month'); // week | month | year
-  const [billingUnit, setBillingUnit] = useState('day'); // day | week | month
-  const [splitCount, setSplitCount] = useState('1');
+  const [meId, setMeId] = useState(null);
 
-  useEffect(()=>{
-    (async ()=>{
-      try{
-        if (!hasSupabaseConfig()) { setLoading(false); return; }
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setLoading(false); return; }
+  // ---------- helpers ----------
+  const normalizePhone = (s = "") =>
+    String(s)
+      .replace(/[^\d+]/g, "")
+      .replace(/^00/, "+");
 
-        const { data: my } = await supabase
-          .from('circles')
-          .select('*')
-          .or(`owner_id.eq.${user.id},id.in.(select circle_id from circle_members where user_id.eq.${user.id})`)
-          .order('created_at',{ ascending:true });
-
-        const list = my || [];
-        setCircles(list);
-
-        const fromEditCircle = editItem?.circle_id || null;
-        const chosen = initialCircleId || fromEditCircle || list[0]?.id || null;
-        setCircleId(chosen);
-      } catch(e){
-        console.log('load circles error', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [initialCircleId, editItem?.circle_id]);
-
-  const priceCents = useMemo(()=>{
-    const amount = parseFloat(costAmount || '0');
-    const split = Math.max(1, parseInt(splitCount || '1', 10));
-    if (!amount || amount<=0) return 0;
-
-    const perYear = costPeriod === 'year' ? amount : costPeriod === 'month' ? amount * 12 : amount * 52;
-    const unitsPerYear = billingUnit === 'month' ? 12 : billingUnit === 'week' ? 52 : 365;
-
-    const perUnit = perYear / unitsPerYear;
-    const perUnitSplit = perUnit / split;
-    return Math.round(perUnitSplit * 100);
-  }, [costAmount, costPeriod, billingUnit, splitCount]);
-
-  const euro = (n)=> Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'}).format((n||0)/100);
-
-  /** ✅ Retour fiable sans 'Main' */
-  const returnToCircle = () => {
-    if (navigation.canGoBack()) return navigation.goBack();
-    const parent = navigation.getParent?.();
-    if (parent?.navigate) return parent.navigate('Circle');           // ou parent.navigate('App', { screen: 'Circle' }) selon ton root
-    return navigation.navigate('Circle');
+  const pickFirstPhone = (contact) => {
+    const arr = contact?.phoneNumbers || [];
+    const raw = arr?.[0]?.number || "";
+    const phone = normalizePhone(raw);
+    return phone || null;
   };
 
-  async function submit(){
-    try {
-      if (!circleId) return Alert.alert('Cercle requis','Choisis un cercle (sous le titre).');
-      if (!title.trim()) return Alert.alert('Titre requis','Ajoute un titre.');
-
-      const payload = {
-        circle_id: circleId,
-        title: title.trim(),
-        description: desc?.trim() || null,
-        category,
-        price_cents: priceCents,
-        price_unit: billingUnit, // day | week | month
-        max_days: maxDays ? parseInt(maxDays, 10) : null,
-        split_equal: true,
-        split_count: Math.max(1, parseInt(splitCount||'1',10)),
-        available: true,
-      };
-
-      if (editItem?.id) {
-        const { error } = await supabase.from('items').update(payload).eq('id', editItem.id);
-        if (error) throw error;
-        Alert.alert('Modifié','Ton annonce a été mise à jour.');
-      } else {
-        const { error } = await supabase.from('items').insert([payload]);
-        if (error) throw error;
-        Alert.alert('Publié','Ton objet est en ligne dans ce cercle.');
-      }
-      returnToCircle();
-    } catch (e) {
-      console.log('submit item error', e);
-      Alert.alert('Erreur', 'Impossible de publier pour le moment.');
+  // ---------- load current user + members ----------
+  const loadMembers = useCallback(async () => {
+    if (!circleId) {
+      setLoading(false);
+      Alert.alert("Membres", "circleId manquant.");
+      navigation.goBack();
+      return;
     }
-  }
+    if (!hasSupabaseConfig()) {
+      setLoading(false);
+      return;
+    }
 
+    setLoading(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      const user = u?.user;
+      setMeId(user?.id || null);
+
+      // 1) récupère les user_id dans circle_members
+      const memRes = await supabase
+        .from("circle_members")
+        .select("user_id")
+        .eq("circle_id", circleId);
+
+      if (memRes.error) throw memRes.error;
+
+      const ids = (memRes.data || []).map((x) => x.user_id).filter(Boolean);
+      if (!ids.length) {
+        setMembers([]);
+        return;
+      }
+
+      // 2) récupère les profils
+      const profRes = await supabase
+        .from("profiles")
+        .select("id, public_name")
+        .in("id", ids);
+
+      if (profRes.error) throw profRes.error;
+
+      const map = new Map((profRes.data || []).map((p) => [String(p.id), p]));
+      const list = ids
+        .map((id) => map.get(String(id)) || { id, public_name: "Membre" })
+        .sort((a, b) => String(a.public_name || "").localeCompare(String(b.public_name || "")));
+
+      setMembers(list);
+    } catch (e) {
+      console.log("[MembersScreen] loadMembers error:", e?.message || e);
+      Alert.alert("Membres", e?.message || "Impossible de charger les membres.");
+    } finally {
+      setLoading(false);
+    }
+  }, [circleId, navigation]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
+
+  // ---------- contacts permission + load ----------
+  const openContactsOrSettings = useCallback(async () => {
+    setContactsLoading(true);
+    try {
+      const perm = await Contacts.getPermissionsAsync();
+
+      // Déjà accordé
+      if (perm.status === "granted") {
+        const { data } = await Contacts.getContactsAsync({
+          fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+          sort: Contacts.SortTypes.FirstName,
+          pageSize: 2000,
+        });
+        setContacts(data || []);
+        setTab("add");
+        return;
+      }
+
+      // On peut encore demander
+      if (perm.canAskAgain) {
+        const req = await Contacts.requestPermissionsAsync();
+        if (req.status === "granted") {
+          const { data } = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+            sort: Contacts.SortTypes.FirstName,
+            pageSize: 2000,
+          });
+          setContacts(data || []);
+          setTab("add");
+          return;
+        }
+      }
+
+      // Refus définitif -> réglages
+      Alert.alert(
+        "Accès aux contacts",
+        "Tu as refusé l'accès aux contacts. Active Contacts dans Réglages pour ajouter un membre.",
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Ouvrir Réglages",
+            onPress: async () => {
+              try {
+                await Linking.openSettings();
+              } catch {
+                Alert.alert("Réglages", "Impossible d’ouvrir les réglages automatiquement.");
+              }
+            },
+          },
+        ]
+      );
+    } catch (e) {
+      console.log("[MembersScreen] contacts error:", e?.message || e);
+      Alert.alert("Contacts", "Impossible d’accéder aux contacts.");
+    } finally {
+      setContactsLoading(false);
+    }
+  }, []);
+
+  // ---------- invite ----------
+  const inviteOne = useCallback(
+    async (contact) => {
+      if (!circleId) return;
+
+      const phone = pickFirstPhone(contact);
+      const name = contact?.name || contact?.firstName || "toi";
+
+      if (!phone) {
+        Alert.alert("Invitation", "Ce contact n’a pas de numéro de téléphone.");
+        return;
+      }
+
+      setInviting(phone);
+      try {
+        await inviteContactToCircle({
+          circleId,
+          name,
+          phone,
+        });
+
+        Alert.alert("Invitation envoyée", `Invitation envoyée à ${name}.`);
+      } catch (e) {
+        console.log("[MembersScreen] invite error:", e?.message || e);
+        Alert.alert("Invitation", e?.message || "Impossible d’envoyer l’invitation.");
+      } finally {
+        setInviting(null);
+      }
+    },
+    [circleId]
+  );
+
+  const filteredContacts = useMemo(() => {
+    const qq = q.trim().toLowerCase();
+    if (!qq) return contacts;
+
+    return (contacts || []).filter((c) => {
+      const name = String(c?.name || "").toLowerCase();
+      const p = normalizePhone(c?.phoneNumbers?.[0]?.number || "");
+      return name.includes(qq) || p.includes(qq);
+    });
+  }, [contacts, q]);
+
+  // ---------- UI ----------
   if (loading) {
-    return <View style={{ flex:1, backgroundColor: colors.bg }} />;
+    return (
+      <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.mint} />
+          <Text style={styles.sub}>Chargement…</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
-
-  const multipleCircles = (circles?.length || 0) > 1;
 
   return (
-    <KeyboardAvoidingView style={{ flex:1, backgroundColor: colors.bg }} behavior={Platform.OS==='ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={{ padding:16, paddingBottom: 24 }}>
-        <Text style={styles.h1}>{editItem ? 'Modifier l’objet' : 'Ajouter un objet'}</Text>
-
-        {/* Titre */}
-        <Text style={styles.label}>Titre</Text>
-        <TextInput value={title} onChangeText={setTitle} placeholder="Ex: Perceuse, Box internet, Local..." placeholderTextColor={colors.subtext} style={styles.input} />
-
-        {/* Sélecteur de cercle */}
-        {multipleCircles && (
-          <View style={{ marginTop:10 }}>
-            <View style={styles.rowMiddle}>
-              <MaterialCommunityIcons name="account-group-outline" size={16} color={colors.subtext} />
-              <Text style={styles.subtle}>Cercle de publication</Text>
-            </View>
-            <View style={styles.chipsWrap}>
-              {circles.map(c=>{
-                const active = String(circleId) === String(c.id);
-                return (
-                  <TouchableOpacity key={c.id} onPress={()=>setCircleId(c.id)} style={[styles.chip, active && styles.chipActive]} activeOpacity={0.9}>
-                    <Text style={[styles.chipTxt, active && styles.chipTxtActive]} numberOfLines={1}>{c.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        )}
-
-        {/* Catégorie */}
-        <Text style={styles.label}>Catégorie</Text>
-        <View style={styles.pillsWrap}>
-          {CATEGORIES.map(c => (
-            <TouchableOpacity key={c.key} onPress={()=>setCategory(c.key)} style={[styles.pill, category===c.key && styles.pillActive]} activeOpacity={0.9}>
-              <Text style={[styles.pillTxt, category===c.key && styles.pillTxtActive]}>{c.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Description */}
-        <Text style={styles.label}>Description</Text>
-        <TextInput value={desc} onChangeText={setDesc} placeholder="Détails, état, conditions..." placeholderTextColor={colors.subtext} style={[styles.input, { height:110, textAlignVertical:'top' }]} multiline />
-
-        {/* Tarifs intelligents */}
-        <Text style={[styles.sectionTitle, { marginTop:16 }]}>Tarifs intelligents</Text>
-
-        {/* Coût + Période */}
-        <View style={styles.block}>
-          <View style={{ flex:1, minWidth: 180 }}>
-            <Text style={styles.smallLabel}>Ce que ça me coûte</Text>
-            <TextInput value={costAmount} onChangeText={setCostAmount} placeholder="ex. 60" keyboardType="decimal-pad" placeholderTextColor={colors.subtext} style={styles.input} />
-          </View>
-          <View style={{ flex:1, minWidth: 180 }}>
-            <Text style={styles.smallLabel}>Période de coût</Text>
-            <View style={styles.pillsWrapRow}>
-              {['week','month','year'].map(p => (
-                <TouchableOpacity key={p} onPress={()=>setCostPeriod(p)} style={[styles.smallPill, costPeriod===p && styles.smallPillActive]} activeOpacity={0.9}>
-                  <Text style={[styles.smallPillTxt, costPeriod===p && styles.smallPillTxtActive]}>
-                    {p==='week'?'Semaine':p==='month'?'Mois':'An'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* Facturer par + Répartir entre */}
-        <View style={styles.block}>
-          <View style={{ flex:1, minWidth: 180 }}>
-            <Text style={styles.smallLabel}>Facturer par</Text>
-            <View style={styles.pillsWrapRow}>
-              {['day','week','month'].map(u => (
-                <TouchableOpacity key={u} onPress={()=>setBillingUnit(u)} style={[styles.smallPill, billingUnit===u && styles.smallPillActive]} activeOpacity={0.9}>
-                  <Text style={[styles.smallPillTxt, billingUnit===u && styles.smallPillTxtActive]}>
-                    {u==='day'?'Jour':u==='week'?'Semaine':'Mois'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          <View style={{ flex:1, minWidth: 180 }}>
-            <Text style={styles.smallLabel}>Répartir entre</Text>
-            <TextInput value={splitCount} onChangeText={setSplitCount} placeholder="ex. 3" keyboardType="number-pad" placeholderTextColor={colors.subtext} style={styles.input} />
-          </View>
-        </View>
-
-        {/* Résumé calcul */}
-        <View style={styles.card}>
-          <Text style={styles.calcLine}>
-            Prix calculé: <Text style={styles.calcStrong}>{euro(priceCents)}</Text> {billingUnit==='day'?'/j':billingUnit==='week'?'/sem.':'/mois'}
-          </Text>
-          <Text style={styles.calcSub}>Répartition équitable sur {Math.max(1, parseInt(splitCount||'1',10))} personne(s).</Text>
-        </View>
-
-        {/* Options */}
-        <Text style={styles.label}>Durée max (jours) — optionnel</Text>
-        <TextInput value={maxDays} onChangeText={setMaxDays} placeholder="ex. 7" keyboardType="number-pad" placeholderTextColor={colors.subtext} style={styles.input} />
-
-        <TouchableOpacity onPress={submit} style={styles.submitBtn} activeOpacity={0.95}>
-          <Text style={styles.submitTxt}>{editItem ? 'Enregistrer' : 'Publier'}</Text>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} activeOpacity={0.9}>
+          <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.h1}>Membres</Text>
+          <Text style={styles.sub} numberOfLines={1}>
+            Cercle : {circleId ? circleId.slice(0, 8) + "…" : "—"}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={openContactsOrSettings}
+          style={[styles.addBtn, contactsLoading && { opacity: 0.7 }]}
+          activeOpacity={0.9}
+          disabled={contactsLoading}
+        >
+          {contactsLoading ? (
+            <ActivityIndicator color={colors.bg} />
+          ) : (
+            <>
+              <MaterialCommunityIcons name="account-plus-outline" size={18} color={colors.bg} />
+              <Text style={styles.addTxt}>Ajouter</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Tabs */}
+     <View style={styles.tabs}>
+  <TouchableOpacity
+    onPress={() => setTab("members")}
+    style={[styles.tab, tab === "members" && styles.tabActive]}
+    activeOpacity={0.9}
+  >
+    <Text style={[styles.tabTxt, tab === "members" && styles.tabTxtActive]}>Membres</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    onPress={() => setTab("add")}
+    style={[styles.tab, tab === "add" && styles.tabActive]}
+    activeOpacity={0.9}
+  >
+    <Text style={[styles.tabTxt, tab === "add" && styles.tabTxtActive]}>Contacts</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    onPress={() => setTab("code")}
+    style={[styles.tab, tab === "code" && styles.tabActive]}
+    activeOpacity={0.9}
+  >
+    <Text style={[styles.tabTxt, tab === "code" && styles.tabTxtActive]}>Code</Text>
+  </TouchableOpacity>
+</View>
+
+      {/* Members list */}
+      {tab === "members" ? (
+        <FlatList
+          data={members}
+          keyExtractor={(m) => String(m.id)}
+          contentContainerStyle={{ padding: 12, paddingBottom: 24 }}
+          renderItem={({ item }) => {
+            const mine = meId && String(item.id) === String(meId);
+            return (
+              <View style={styles.cardRow}>
+                <MaterialCommunityIcons name="account-circle-outline" size={26} color={colors.mint} />
+                <View style={{ marginLeft: 10, flex: 1, minWidth: 0 }}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {item.public_name || "Membre"}
+                    {mine ? " (moi)" : ""}
+                  </Text>
+                  <Text style={styles.sub} numberOfLines={1}>
+                    {String(item.id).slice(0, 8)}…
+                  </Text>
+                </View>
+              </View>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.center}>
+              <Text style={styles.sub}>Aucun membre.</Text>
+            </View>
+          }
+        />
+      ) : (
+        <View style={{ flex: 1 }}>
+          <View style={styles.searchWrap}>
+            <MaterialCommunityIcons name="magnify" size={18} color={colors.subtext} />
+            <TextInput
+              value={q}
+              onChangeText={setQ}
+              placeholder="Rechercher un contact ou un numéro…"
+              placeholderTextColor={colors.subtext}
+              style={styles.search}
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <FlatList
+            data={filteredContacts}
+            keyExtractor={(c) => String(c.id)}
+            contentContainerStyle={{ padding: 12, paddingBottom: 24 }}
+            renderItem={({ item }) => {
+              const phone = pickFirstPhone(item);
+              return (
+                <TouchableOpacity
+                  onPress={() => inviteOne(item)}
+                  style={styles.contactRow}
+                  activeOpacity={0.9}
+                  disabled={!phone || inviting === phone}
+                >
+                  <MaterialCommunityIcons name="account-outline" size={22} color={colors.text} />
+                  <View style={{ marginLeft: 10, flex: 1, minWidth: 0 }}>
+                    <Text style={styles.name} numberOfLines={1}>
+                      {item.name || "Sans nom"}
+                    </Text>
+                    <Text style={styles.sub} numberOfLines={1}>
+                      {phone ? phone : "Pas de numéro"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.invitePill}>
+                    {inviting === phone ? (
+                      <ActivityIndicator color={colors.bg} />
+                    ) : (
+                      <Text style={styles.invitePillTxt}>Inviter</Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            ListEmptyComponent={
+              <View style={styles.center}>
+                <Text style={styles.sub}>
+                  {contacts?.length
+                    ? "Aucun résultat."
+                    : "Clique sur “Ajouter” en haut pour charger tes contacts."}
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      )}
+    </SafeAreaView>
   );
 }
 
-/* styles */
 const styles = StyleSheet.create({
-  h1:{ color: colors.text, fontWeight:'900', fontSize:20, marginBottom:10 },
-  label:{ color: colors.subtext, marginTop:14, marginBottom:6 },
-  subtle:{ color: colors.subtext, marginLeft:6, fontSize:12 },
+  safe: { flex: 1, backgroundColor: colors.bg },
 
-  input:{ backgroundColor:'#151826', borderColor: colors.stroke, borderWidth:1, borderRadius:12, padding:12, color: colors.text },
+  header: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
 
-  sectionTitle:{ color: colors.text, fontWeight:'800', fontSize:16 },
+  h1: { color: colors.text, fontWeight: "900", fontSize: 18 },
+  sub: { color: colors.subtext, fontWeight: "700", marginTop: 2 },
 
-  // groupements responsives
-  block:{ flexDirection:'row', columnGap:12, rowGap:8, flexWrap:'wrap', marginTop:8 },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.mint,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  addTxt: { color: colors.bg, fontWeight: "900" },
 
-  // pills catégories
-  pillsWrap:{ flexDirection:'row', flexWrap:'wrap', gap:8 },
-  pill:{ paddingVertical:8, paddingHorizontal:12, borderRadius:12, backgroundColor:'#121826', borderWidth:1, borderColor: colors.stroke, marginBottom:6 },
-  pillActive:{ backgroundColor:'#0f192a', borderColor:'#2a3b57' },
-  pillTxt:{ color: colors.text, fontWeight:'700' },
-  pillTxtActive:{ color: colors.mint },
+  tabs: {
+    flexDirection: "row",
+    padding: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  tabActive: { backgroundColor: "rgba(29,255,194,0.12)", borderColor: "rgba(29,255,194,0.30)" },
+  tabTxt: { color: colors.subtext, fontWeight: "900" },
+  tabTxtActive: { color: colors.mint },
 
-  // petites pills
-  pillsWrapRow:{ flexDirection:'row', flexWrap:'wrap', gap:8 },
-  smallPill:{ paddingVertical:6, paddingHorizontal:10, borderRadius:10, backgroundColor:'#121826', borderWidth:1, borderColor: colors.stroke },
-  smallPillActive:{ backgroundColor:'#0f192a', borderColor:'#2a3b57' },
-  smallPillTxt:{ color: colors.text, fontWeight:'700', fontSize:12 },
-  smallPillTxtActive:{ color: colors.mint },
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    marginBottom: 10,
+  },
 
-  // chips cercle
-  rowMiddle:{ flexDirection:'row', alignItems:'center', gap:6 },
-  chipsWrap:{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:6 },
-  chip:{ paddingVertical:6, paddingHorizontal:10, borderRadius:999, borderWidth:1, borderColor:colors.stroke, backgroundColor:'#101726' },
-  chipActive:{ backgroundColor: colors.mint, borderColor: colors.mint },
-  chipTxt:{ color: colors.text, fontWeight:'700' },
-  chipTxtActive:{ color: colors.bg, fontWeight:'900' },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    margin: 12,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 12 : 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  search: { flex: 1, color: colors.text, fontWeight: "700" },
 
-  // carte calcul
-  card:{ backgroundColor:'#0f1725', borderColor: colors.stroke, borderWidth:1, borderRadius:12, padding:12, marginTop:10 },
-  calcLine:{ color: colors.text, fontWeight:'800' },
-  calcStrong:{ color: colors.mint },
-  calcSub:{ color: colors.subtext, marginTop:4 },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    marginBottom: 10,
+    gap: 8,
+  },
+  name: { color: colors.text, fontWeight: "900" },
 
-  submitBtn:{ marginTop:20, backgroundColor: colors.mint, padding:14, borderRadius:14, alignItems:'center' },
-  submitTxt:{ color: colors.bg, fontWeight:'900' },
+  invitePill: {
+    backgroundColor: colors.mint,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minWidth: 72,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  invitePillTxt: { color: colors.bg, fontWeight: "900" },
+
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 },
 });

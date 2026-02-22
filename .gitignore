@@ -1,2 +1,10 @@
 node_modules
 .expo/
+
+.DS_Store
+.env.secret
+.vscode/
+
+.DS_Store
+.env.secret
+.vscode/

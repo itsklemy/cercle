@@ -1,206 +1,270 @@
 // src/screens/SplashScreen.js
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from "react";
 import {
-  View, Text, StyleSheet, TouchableOpacity, Image, Linking,
-  ActivityIndicator, InteractionManager, SafeAreaView, ScrollView, Alert,
-} from 'react-native';
-import { colors } from '../theme/colors';
-import { supabase, hasSupabaseConfig, SUPABASE_URL, SUPABASE_ANON_KEY } from '../lib/supabase';
-import { CommonActions } from '@react-navigation/native';
-import { useResponsive } from '../hooks/useResponsive';
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+  Linking,
+  Alert,
+  Platform,
+} from "react-native";
+import { CommonActions } from "@react-navigation/native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { supabase, hasSupabaseConfig } from "../lib/supabase";
+import { colors as themeColors } from "../theme/colors";
 
+/* -------------------- Theme fallback (anti-crash) -------------------- */
+const C = themeColors || {};
+const colors = {
+  bg: C.bg ?? "#0B0E14",
+  text: C.text ?? "#F3F4F6",
+  subtext: C.subtext ?? "#9AA3B2",
+  mint: C.mint ?? "#1DFFC2",
+  card: C.card ?? "rgba(255,255,255,0.04)",
+  stroke: C.stroke ?? "rgba(255,255,255,0.10)",
+};
+
+// safe root nav resolver
 function getRootNav(navigation) {
   let nav = navigation;
-  let parent = nav?.getParent?.();
-  while (parent) { nav = parent; parent = nav.getParent?.(); }
+  try {
+    let parent = nav?.getParent?.();
+    while (parent) {
+      nav = parent;
+      parent = nav.getParent?.();
+    }
+  } catch {}
   return nav || navigation;
 }
 
 export default function SplashScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const navigatingRef = useRef(false);
-  const [msg, setMsg] = useState('Initialisation…');
 
-  useResponsive();
-
-  const resetToAuth = () => {
-    if (navigatingRef.current) return;
-    navigatingRef.current = true;
+  const resetToAuth = (mode = "signin") => {
     const root = getRootNav(navigation);
-    InteractionManager.runAfterInteractions(() => {
-      root.dispatch(CommonActions.reset({ index: 0, routes: [{ name: 'Auth' }] }));
-    });
-  };
-
-  const resetToAppTabs = (initialTab = 'Dashboard') => {
-    if (navigatingRef.current) return;
-    navigatingRef.current = true;
-    const root = getRootNav(navigation);
-    InteractionManager.runAfterInteractions(() => {
-      root.dispatch(CommonActions.reset({
+    root?.dispatch(
+      CommonActions.reset({
         index: 0,
-        routes: [{ name: 'AppTabs', state: { index: 0, routes: [{ name: initialTab }] } }],
-      }));
-    });
+        routes: [{ name: "Auth", params: { mode } }],
+      })
+    );
   };
 
-  // ➕ Bouton "Commencer"
+  const resetToAppTabs = (initialTab = "Dashboard") => {
+    const root = getRootNav(navigation);
+    root?.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: "AppTabs", params: { screen: initialTab } }],
+      })
+    );
+  };
+
   const onStart = async () => {
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
     try {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session) resetToAppTabs('Dashboard');
-      else resetToAuth();
-    } catch {
-      resetToAuth();
+      if (!hasSupabaseConfig() || !supabase?.auth?.getSession) {
+        resetToAuth("signin");
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        resetToAuth("signin");
+        return;
+      }
+
+      const user = data?.session?.user;
+      if (!user) {
+        resetToAuth("signup");
+        return;
+      }
+
+      resetToAppTabs("Dashboard");
+    } catch (e) {
+      Alert.alert("Erreur", "Impossible de démarrer automatiquement. Tu peux te connecter manuellement.");
+      resetToAuth("signin");
+    } finally {
+      navigatingRef.current = false;
     }
   };
 
   useEffect(() => {
-    let mounted = true;
+    const t = setTimeout(() => onStart(), 650);
+    return () => clearTimeout(t);
+  }, []);
 
-    (async () => {
-      await new Promise((r) => setTimeout(r, 400));
+  const openLink = async (url) => {
+    try {
+      const can = await Linking.canOpenURL(url);
+      if (!can) throw new Error("unsupported");
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Lien", "Impossible d’ouvrir ce lien.");
+    }
+  };
 
-      if (!hasSupabaseConfig()) {
-        setMsg('Config requise…');
-        return;
-      }
-
-      try {
-        setMsg('Connexion au service…');
-        const health = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
-          headers: { apikey: SUPABASE_ANON_KEY },
-        });
-        const ct = health.headers.get('content-type') || '';
-        if (!(health.status === 200 && ct.includes('application/json'))) {
-          if (!mounted) return;
-          Alert.alert('Connexion au service', `Réponse inattendue: ${health.status} ${ct}`);
-          setMsg('Service indisponible');
-          return;
-        }
-
-        setMsg('Chargement de la session…');
-        const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (data?.session) {
-          resetToAppTabs('Circle'); // auto-route si déjà connecté
-        } else {
-          // On reste sur Splash ; l’utilisateur peut appuyer sur "Commencer" / "Se connecter"
-          setMsg('Prêt');
-        }
-      } catch (e) {
-        if (!mounted) return;
-        setMsg('Erreur de démarrage');
-      }
-    })();
-
-    return () => { mounted = false; };
-  }, [navigation]);
+  const padTop = Math.max(insets.top, 16);
+  const padBottom = Math.max(insets.bottom, 14);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <Image
-        source={{ uri: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1200&q=80' }}
-        style={styles.hero}
-        resizeMode="cover"
-        accessible
-        accessibilityLabel="Image d’illustration Cercle"
-      />
+    <SafeAreaView style={[styles.safe, { paddingTop: padTop, paddingBottom: padBottom }]} edges={["top", "bottom"]}>
+      {/* Background “soft identity” : halos mint */}
+      <View pointerEvents="none" style={styles.haloA} />
+      <View pointerEvents="none" style={styles.haloB} />
+      <View pointerEvents="none" style={styles.haloC} />
 
-      <ScrollView contentContainerStyle={styles.container} bounces={false} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          <Text style={styles.logo}>Cercle</Text>
-          <Text style={styles.subtitle}>Plateforme de ressources partagées.</Text>
-          <View style={{ height: 12 }} />
-          <Text style={styles.slogan}>« Prête, emprunte, partage. »</Text>
-          <View style={{ height: 24 }} />
+      <View style={styles.wrap}>
+        {/* Top spacer */}
+        <View style={{ height: 8 }} />
 
-          {/* ➕ Commencer */}
-          <TouchableOpacity
-            onPress={onStart}
-            style={[styles.cta, { backgroundColor: colors.mint }]}
-            activeOpacity={0.9}
-            accessible
-            accessibilityLabel="Commencer"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.ctaTxt}>Commencer</Text>
-          </TouchableOpacity>
+        {/* Center card */}
+        <View style={styles.heroCard}>
+          <View style={styles.logoWrap}>
+            <Image source={require("../../assets/icon.png")} style={styles.logo} resizeMode="contain" />
+          </View>
 
-          {/* Connexion / Création compte */}
-          <TouchableOpacity
-            onPress={resetToAuth}
-            style={[styles.ghost, { marginTop: 6 }]}
-            activeOpacity={0.9}
-            accessible
-            accessibilityLabel="Se connecter"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.ghostTxt}>Se connecter</Text>
-          </TouchableOpacity>
+          <Text style={styles.title}>Cercle</Text>
+          <Text style={styles.subtitle}>Prête. Emprunte. Partage.</Text>
 
-          <TouchableOpacity
-            onPress={resetToAuth}
-            style={styles.ghost}
-            activeOpacity={0.9}
-            accessible
-            accessibilityLabel="Créer un compte"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.ghostTxt}>Créer un compte</Text>
-          </TouchableOpacity>
+          <View style={styles.divider} />
 
-          {/* Loader + message */}
-          <View style={{ marginTop: 20, alignItems: 'center' }}>
-            <ActivityIndicator size="small" color={colors.mint} />
-            <Text style={{ color: colors.subtext, marginTop: 8 }}>{msg}</Text>
+          <Text style={styles.body}>
+            L’entraide entre proches,{"\n"}simple et transparente.
+          </Text>
+
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={colors.mint} />
+            <Text style={styles.loadingTxt}>Chargement…</Text>
           </View>
         </View>
 
+        {/* Footer */}
         <View style={styles.footer}>
-          <TouchableOpacity
-            onPress={async () => {
-              const url = 'https://stunning-pothos-07a3d3.netlify.app';
-              try { if (await Linking.canOpenURL(url)) await Linking.openURL(url); } catch {}
-            }}
-            activeOpacity={0.8}
-            accessible
-            accessibilityLabel="Confidentialité, CGU et mentions légales"
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.legal}>Confidentialité · CGU · Mentions légales</Text>
+          <TouchableOpacity activeOpacity={0.9} style={styles.btn} onPress={onStart}>
+            <Text style={styles.btnTxt}>Commencer</Text>
           </TouchableOpacity>
+
+          <View style={styles.linksRow}>
+            <TouchableOpacity onPress={() => openLink("https://harmonious-griffin-ec8775.netlify.app/terms")}>
+              <Text style={styles.link}>CGU</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.dot}>•</Text>
+
+            <TouchableOpacity onPress={() => openLink("https://harmonious-griffin-ec8775.netlify.app/privacy")}>
+              <Text style={styles.link}>Confidentialité</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.dot}>•</Text>
+
+            <TouchableOpacity onPress={() => openLink("mailto:orastudio.org@gmail.com")}>
+              <Text style={styles.link}>Support</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.micro}>
+            {Platform.OS === "ios" ? "Disponible sur iPhone" : "Disponible sur Android"} · Version bêta
+          </Text>
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  hero: { position: 'absolute', opacity: 0.12, top: 0, left: 0, right: 0, bottom: 0 },
 
-  container: { flexGrow: 1, padding: 24, paddingBottom: 32, justifyContent: 'space-between' },
-  content: { alignItems: 'center' },
-  footer: { alignItems: 'center', paddingTop: 16 },
+  wrap: { flex: 1, paddingHorizontal: 16, justifyContent: "space-between" },
 
-  logo: { color: colors.text, fontSize: 40, fontWeight: '900', letterSpacing: 1, marginBottom: 6 },
-  subtitle: { color: colors.subtext, textAlign: 'center', marginBottom: 8 },
-  slogan: { color: colors.text, fontWeight: '700', textAlign: 'center' },
-
-  cta: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 8,
-    minHeight: 48,
-    justifyContent: 'center',
+  /* --- Soft halos (identity) --- */
+  haloA: {
+    position: "absolute",
+    top: -140,
+    left: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 320,
+    backgroundColor: "rgba(29,255,194,0.16)",
+    opacity: 0.9,
   },
-  ctaTxt: { color: colors.bg, fontWeight: '900' },
-  ghost: { padding: 12, width: '100%', alignItems: 'center', minHeight: 48, justifyContent: 'center' },
-  ghostTxt: { color: colors.subtext, fontWeight: '700' },
+  haloB: {
+    position: "absolute",
+    bottom: -180,
+    right: -140,
+    width: 420,
+    height: 420,
+    borderRadius: 420,
+    backgroundColor: "rgba(29,255,194,0.10)",
+  },
+  haloC: {
+    position: "absolute",
+    top: 120,
+    right: -80,
+    width: 240,
+    height: 240,
+    borderRadius: 240,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
 
-  legal: { color: colors.text, opacity: 0.8, textDecorationLine: 'underline' },
+  heroCard: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 520,
+    borderRadius: 22,
+    padding: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: colors.stroke,
+  },
+
+  logoWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: "rgba(29,255,194,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(29,255,194,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  logo: { width: 34, height: 34, borderRadius: 10 },
+
+  title: { color: colors.text, fontSize: 32, fontWeight: "900" },
+  subtitle: { color: colors.subtext, marginTop: 6, fontWeight: "800" },
+
+  divider: {
+    height: 1,
+    backgroundColor: colors.stroke,
+    marginVertical: 14,
+  },
+
+  body: { color: colors.text, opacity: 0.92, lineHeight: 20, fontWeight: "700" },
+
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14 },
+  loadingTxt: { color: colors.subtext, fontWeight: "800" },
+
+  footer: { paddingTop: 14, paddingBottom: 4, gap: 10 },
+
+  btn: {
+    backgroundColor: colors.mint,
+    paddingVertical: 13,
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(29,255,194,0.25)",
+  },
+  btnTxt: { color: colors.bg, fontWeight: "900", fontSize: 16 },
+
+  linksRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  link: { color: colors.subtext, textDecorationLine: "underline", fontWeight: "800" },
+  dot: { color: colors.subtext, opacity: 0.7 },
+
+  micro: { textAlign: "center", color: colors.subtext, opacity: 0.75, fontWeight: "700" },
 });

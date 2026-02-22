@@ -13,10 +13,10 @@ export default ({ config }) => {
     scheme: "cercle",
 
     // ✅ Version visible (App Store / Play Store)
-    version: "5.0.0",
+    version: "7.0.2",
 
-    // ✅ Runtime version (OTA) — garde-la stable sur toute la série 5.0.x
-    runtimeVersion: "5.0.0",
+    // ✅ Runtime version (OTA)
+    runtimeVersion: "7.0.2",
 
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -30,7 +30,7 @@ export default ({ config }) => {
       teamId: "HM95CV96WV",
 
       // ✅ Incrémente à CHAQUE upload vers App Store Connect
-      buildNumber: "8",
+      buildNumber: "13",
 
       infoPlist: {
         UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
@@ -70,11 +70,15 @@ export default ({ config }) => {
           : { NSAllowsArbitraryLoads: false },
 
         // Permissions strings
-        NSContactsUsageDescription: "Nous utilisons tes contacts pour inviter des proches dans ton cercle.",
+        NSContactsUsageDescription:
+          "Nous utilisons tes contacts pour inviter des proches dans ton cercle.",
         NSCameraUsageDescription: "Ajoute des photos à tes objets.",
-        NSPhotoLibraryUsageDescription: "Sélectionne des photos pour tes annonces.",
-        NSPhotoLibraryAddUsageDescription: "Enregistre des photos si nécessaire.",
-        NSMicrophoneUsageDescription: "Enregistre de l’audio si une fonctionnalité le nécessite.",
+        NSPhotoLibraryUsageDescription:
+          "Sélectionne des photos pour tes annonces.",
+        NSPhotoLibraryAddUsageDescription:
+          "Enregistre des photos si nécessaire.",
+        NSMicrophoneUsageDescription:
+          "Enregistre de l’audio si une fonctionnalité le nécessite.",
 
         // Updates
         EXUpdatesEnabled: isDev ? false : true,
@@ -86,7 +90,7 @@ export default ({ config }) => {
       package: "com.cercle.app",
 
       // ✅ Incrémente à CHAQUE upload Google Play
-      versionCode: 5,
+      versionCode: 55,
 
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
@@ -99,7 +103,7 @@ export default ({ config }) => {
         "WAKE_LOCK",
         "READ_CONTACTS",
         "WRITE_CONTACTS",
-        "android.permission.POST_NOTIFICATIONS" // Android 13+
+        "android.permission.POST_NOTIFICATIONS", // Android 13+
       ],
     },
 
@@ -111,7 +115,8 @@ export default ({ config }) => {
 
       // Supabase (publishable côté client)
       EXPO_PUBLIC_SUPABASE_URL: "https://omfvrlcelpxoguonqzbb.supabase.co",
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_1ok4DF0c3OJ2yIozh8xvrw_6ny7xPwn",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY:
+        "sb_publishable_1ok4DF0c3OJ2yIozh8xvrw_6ny7xPwn",
     },
   };
 
