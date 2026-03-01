@@ -36,6 +36,20 @@
         "EXPO_PUBLIC_SUPABASE_URL": "https://omfvrlcelpxoguonqzbb.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_1ok4DF0c3OJ2yIozh8xvrw_6ny7xPwn"
       }
+    },
+    "apk": {
+      "node": "20.19.4",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "preview",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://omfvrlcelpxoguonqzbb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_1ok4DF0c3OJ2yIozh8xvrw_6ny7xPwn"
+      }
     }
   },
   "submit": {

@@ -17,12 +17,11 @@ import { createNativeStackNavigator as createStackNavigator } from "@react-navig
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { enableScreens } from "react-native-screens";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
 import { isValidElementType } from "react-is";
 
 import { registerForPushTokenAsync } from "./src/notifications/notifications";
-import { registerExpoPushToken } from "./src/notifications/registerPushToken"; // ✅ NEW
-import { supabase } from "./src/lib/supabase"; // (gardé tel quel)
+import { registerExpoPushToken } from "./src/notifications/registerPushToken";
+import { supabase } from "./src/lib/supabase";
 import { colors } from "./src/theme/colors";
 
 import InterstitialVideoModal from "./src/ads/InterstitialVideoModal";
@@ -30,13 +29,9 @@ import { useInterstitialAds } from "./src/ads/useInterstitialAds";
 import { PLACEMENTS } from "./src/ads/adCatalog";
 import { incAppOpenCountToday } from "./src/ads/adStorage";
 
-// ✅ Optimisations natives
 enableScreens(true);
-
-// ✅ Splash: on empêche l’auto-hide dès le chargement du module
 Splash.preventAutoHideAsync().catch(() => {});
 
-// ---------- Notifications handler ----------
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -45,7 +40,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// ---------- Util pour sécuriser les écrans ----------
+/* ─── Screen resolver ─── */
 const pickExport = (mod) => {
   if (!mod) return null;
   if (isValidElementType(mod.default)) return mod.default;
@@ -56,56 +51,36 @@ const pickExport = (mod) => {
   }
   return null;
 };
-
 const getScreen = (resolver, name) => {
   const mod = resolver();
   const Comp = pickExport(mod);
-  if (!Comp) {
-    throw new Error(`[SCREEN BAD] ${name}: attendu un composant React valide.`);
-  }
+  if (!Comp) throw new Error(`[SCREEN BAD] ${name}: attendu un composant React valide.`);
   return Comp;
 };
 
-// ---------- Deep linking ----------
+/* ─── Deep linking ─── */
 const linking = {
   prefixes: [Linking.createURL("/"), "cercle://", "https://harmonious-griffin-ec8775.netlify.app"],
-  config: {
-    screens: {
-      Invite: "invite/:token",
-    },
-  },
+  config: { screens: { Invite: "invite/:token" } },
 };
 
-// ---------- Screens ----------
-const SplashScreen = getScreen(() => require("./src/screens/SplashScreen"), "SplashScreen");
-const AuthScreen = getScreen(() => require("./src/screens/AuthScreen"), "AuthScreen");
-const DashboardScreen = getScreen(() => require("./src/screens/DashboardScreen"), "DashboardScreen");
-const CircleScreen = getScreen(() => require("./src/screens/CircleScreen"), "CircleScreen");
-const ProfileScreen = getScreen(() => require("./src/screens/ProfileScreen"), "ProfileScreen");
-const AddItemScreen = getScreen(() => require("./src/screens/AddItemScreen"), "AddItemScreen");
+/* ─── Screens ─── */
+// ✅ DashboardScreen supprimé — remplacé par ProfileScreen étendu
+const SplashScreen     = getScreen(() => require("./src/screens/SplashScreen"), "SplashScreen");
+const AuthScreen       = getScreen(() => require("./src/screens/AuthScreen"), "AuthScreen");
+const CircleScreen     = getScreen(() => require("./src/screens/CircleScreen"), "CircleScreen");
+const ProfileScreen    = getScreen(() => require("./src/screens/ProfileScreen"), "ProfileScreen");
+const AddItemScreen    = getScreen(() => require("./src/screens/AddItemScreen"), "AddItemScreen");
 const ItemDetailScreen = getScreen(() => require("./src/screens/ItemDetailScreen"), "ItemDetailScreen");
-const InventoryUpdateScreen = getScreen(
-  () => require("./src/screens/InventoryUpdateScreen"),
-  "InventoryUpdateScreen"
-);
-const CategoryItemsScreen = getScreen(
-  () => require("./src/screens/CategoryItemsScreen"),
-  "CategoryItemsScreen"
-);
-const MembersScreen = getScreen(() => require("./src/screens/MembersScreen"), "MembersScreen");
-const MyReservations = getScreen(
-  () => require("./src/screens/MyReservationsScreen"),
-  "MyReservationsScreen"
-);
+const InventoryUpdateScreen = getScreen(() => require("./src/screens/InventoryUpdateScreen"), "InventoryUpdateScreen");
+const CategoryItemsScreen   = getScreen(() => require("./src/screens/CategoryItemsScreen"), "CategoryItemsScreen");
+const MembersScreen    = getScreen(() => require("./src/screens/MembersScreen"), "MembersScreen");
+const MyReservations   = getScreen(() => require("./src/screens/MyReservationsScreen"), "MyReservationsScreen");
 const CallDetailScreen = getScreen(() => require("./src/screens/CallDetailScreen"), "CallDetailScreen");
-const ThreadScreen = getScreen(() => require("./src/screens/ThreadScreen"), "ThreadScreen");
-const InviteScreen = getScreen(() => require("./src/screens/InviteScreen"), "InviteScreen");
-const InventoryOnboardingScreen = getScreen(
-  () => require("./src/screens/InventoryOnboardingScreen"),
-  "InventoryOnboardingScreen"
-);
+const ThreadScreen     = getScreen(() => require("./src/screens/ThreadScreen"), "ThreadScreen");
+const InviteScreen     = getScreen(() => require("./src/screens/InviteScreen"), "InviteScreen");
+const InventoryOnboardingScreen = getScreen(() => require("./src/screens/InventoryOnboardingScreen"), "InventoryOnboardingScreen");
 
-// ---------- Stub ----------
 function StubScreen() {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
@@ -114,17 +89,14 @@ function StubScreen() {
   );
 }
 
-// ---------- Header ----------
+/* ─── Header ─── */
 function AppHeader({ title }) {
-  const TOP_H = 56;
   return (
     <SafeAreaView edges={["top"]} style={{ backgroundColor: colors.card }}>
-      <View style={[styles.header, { height: TOP_H }]}>
+      <View style={[styles.header, { height: 56 }]}>
         <View style={styles.headerLeft}>
           <Image source={require("./assets/icon.png")} style={styles.headerLogo} resizeMode="contain" />
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {title}
-          </Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
         </View>
         <View style={{ width: 24 }} />
       </View>
@@ -132,45 +104,35 @@ function AppHeader({ title }) {
   );
 }
 
-// ---------- Tabs ----------
+/* ─── Tabs ─── */
+// ✅ 2 onglets : Cercle + Moi (Dashboard supprimé)
 const Tab = createBottomTabNavigator();
 
 function Tabs() {
   const insets = useSafeAreaInsets();
   const safeBottom = Math.max(insets.bottom, 10);
-  const TAB_H = 56 + safeBottom;
 
   return (
     <Tab.Navigator
-      initialRouteName="Dashboard"
+      initialRouteName="Circle"   // ✅ Circle est maintenant l'écran d'accueil
       screenOptions={{
         header: ({ route }) => {
-          const mapTitle = { Dashboard: "Accueil", Circle: "Cercle", Profile: "Profil" };
-          return <AppHeader title={mapTitle[route.name] ?? "Cercle"} />;
+          const titles = { Circle: "Cercle", Profile: "Moi" };
+          return <AppHeader title={titles[route.name] ?? "Cercle"} />;
         },
         sceneContainerStyle: { backgroundColor: colors.bg },
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.stroke,
-          height: TAB_H,
+          height: 56 + safeBottom,
           paddingTop: 8,
           paddingBottom: safeBottom,
         },
-        tabBarActiveTintColor: colors.mint,
+        tabBarActiveTintColor:   colors.mint,
         tabBarInactiveTintColor: colors.subtext,
         tabBarLabelStyle: { fontSize: 12, fontWeight: "700" },
       }}
     >
-      <Tab.Screen
-        name="Dashboard"
-        component={DashboardScreen}
-        options={{
-          title: "Accueil",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="view-dashboard-outline" color={color} size={size} />
-          ),
-        }}
-      />
       <Tab.Screen
         name="Circle"
         component={CircleScreen}
@@ -185,7 +147,7 @@ function Tabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          title: "Profil",
+          title: "Moi",   // ✅ Renommé "Moi" (pas "Profil")
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="account-circle-outline" color={color} size={size} />
           ),
@@ -197,31 +159,22 @@ function Tabs() {
 
 const TabsC = getScreen(() => ({ default: Tabs }), "Tabs");
 
-// ---------- Stack ----------
+/* ─── Root Stack ─── */
 const Stack = createStackNavigator();
 
 export default function App() {
   const [navReady, setNavReady] = useState(false);
-
-  const navRef = useRef(null);
-  const lastRouteRef = useRef(null);
+  const navRef     = useRef(null);
+  const lastRoute  = useRef(null);
   const { visible: adVisible, currentAd, maybeShow, close } = useInterstitialAds();
 
-  // ✅ IMPORTANT: ce useEffect DOIT être dans le composant (sinon Invalid hook call)
+  /* OTA updates */
   useEffect(() => {
     (async () => {
       try {
-        console.log("[updates] enabled:", Updates.isEnabled);
-        console.log("[updates] channel:", Updates.channel);
-        console.log("[updates] runtime:", Updates.runtimeVersion);
-        console.log("[updates] updateId:", Updates.updateId);
-
         const res = await Updates.checkForUpdateAsync();
-        console.log("[updates] check:", res);
-
         if (res.isAvailable) {
           await Updates.fetchUpdateAsync();
-          console.log("[updates] fetched, reloading…");
           await Updates.reloadAsync();
         }
       } catch (e) {
@@ -230,73 +183,52 @@ export default function App() {
     })();
   }, []);
 
-  // ✅ 1) Enregistrement token (Expo) + save dans profiles
+  /* Push token */
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       try {
-        // Ton helper existant (permission + token)
         const token = await registerForPushTokenAsync();
-        console.log("APP GOT TOKEN =", token);
-
-        // ✅ Sauvegarde en base (profiles.expo_push_token)
-        // On attend une micro-latence au cas où la session n'est pas encore prête
+        console.log("[push] token =", token);
         setTimeout(async () => {
           try {
             if (!mounted) return;
-            const res = await registerExpoPushToken();
-            console.log("[push] register token to profiles:", res);
+            await registerExpoPushToken();
           } catch (e) {
             console.log("[push] registerExpoPushToken error:", e?.message || e);
           }
         }, 400);
       } catch (e) {
-        console.log("[push] registerForPushTokenAsync error:", e?.message || e);
+        console.log("[push] error:", e?.message || e);
       }
     })();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  // ✅ (optionnel) listener quand user clique une notif
+  /* Notif response listener */
   useEffect(() => {
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => {
       const data = resp?.notification?.request?.content?.data || {};
-      console.log("[push] opened notification data:", data);
-      // plus tard: navigation selon data.type
+      console.log("[push] opened:", data);
     });
-
-    return () => {
-      try {
-        sub.remove?.();
-      } catch {}
-    };
+    return () => { try { sub.remove?.(); } catch {} };
   }, []);
 
-  // Cache splash quand prêt
+  /* Splash */
   useEffect(() => {
     if (navReady) Splash.hideAsync().catch(() => {});
   }, [navReady]);
-
-  // filet sécurité splash
   useEffect(() => {
-    const t = setTimeout(() => {
-      Splash.hideAsync().catch(() => {});
-    }, 3000);
+    const t = setTimeout(() => Splash.hideAsync().catch(() => {}), 3000);
     return () => clearTimeout(t);
   }, []);
 
-  // pub 3e ouverture
+  /* Pub 3e ouverture */
   useEffect(() => {
     (async () => {
       try {
         const n = await incAppOpenCountToday();
-        if (n >= 3) {
-          await maybeShow(PLACEMENTS.OPEN_3RD_TODAY);
-        }
+        if (n >= 3) await maybeShow(PLACEMENTS.OPEN_3RD_TODAY);
       } catch {}
     })();
   }, [maybeShow]);
@@ -308,10 +240,10 @@ export default function App() {
     colors: {
       ...DefaultTheme.colors,
       background: colors.bg,
-      card: colors.card,
-      text: colors.text,
-      border: colors.stroke,
-      primary: colors.mint,
+      card:       colors.card,
+      text:       colors.text,
+      border:     colors.stroke,
+      primary:    colors.mint,
     },
   };
 
@@ -325,15 +257,14 @@ export default function App() {
           onReady={() => setNavReady(true)}
           onStateChange={() => {
             const route = navRef.current?.getCurrentRoute?.();
-            const name = route?.name || null;
-            if (!name || name === lastRouteRef.current) return;
-            lastRouteRef.current = name;
+            const name  = route?.name || null;
+            if (!name || name === lastRoute.current) return;
+            lastRoute.current = name;
 
-            if (name === "Dashboard") {
+            // ✅ Trigger pub déplacé de Dashboard → Circle
+            if (name === "Circle") {
               (async () => {
-                try {
-                  await maybeShow(PLACEMENTS.DASHBOARD_ENTER);
-                } catch {}
+                try { await maybeShow(PLACEMENTS.DASHBOARD_ENTER); } catch {}
               })();
             }
           }}
@@ -343,25 +274,25 @@ export default function App() {
             initialRouteName="Splash"
             screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}
           >
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Auth" component={AuthScreen} />
-            <Stack.Screen name="Invite" component={InviteScreen} />
-            <Stack.Screen name="AppTabs" component={TabsC} />
-            <Stack.Screen name="InventoryOnboarding" component={InventoryOnboardingScreen} />
-            <Stack.Screen name="AddItem" component={AddItemScreen} />
-            <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
+            <Stack.Screen name="Splash"       component={SplashScreen} />
+            <Stack.Screen name="Auth"         component={AuthScreen} />
+            <Stack.Screen name="Invite"       component={InviteScreen} />
+            <Stack.Screen name="AppTabs"      component={TabsC} />
+            <Stack.Screen name="InventoryOnboardingScreen" component={InventoryOnboardingScreen} />
+            <Stack.Screen name="AddItem"      component={AddItemScreen} />
+            <Stack.Screen name="ItemDetail"   component={ItemDetailScreen} />
             <Stack.Screen name="CategoryItems" component={CategoryItemsScreen} />
-            <Stack.Screen name="CallDetail" component={CallDetailScreen} />
-            <Stack.Screen name="Members" component={MembersScreen} />
+            <Stack.Screen name="CallDetail"   component={CallDetailScreen} />
+            <Stack.Screen name="Members"      component={MembersScreen} />
             <Stack.Screen name="MyReservations" component={MyReservations} />
             <Stack.Screen name="InventoryUpdate" component={InventoryUpdateScreen} />
-            <Stack.Screen name="Thread" component={ThreadScreen} />
-            <Stack.Screen name="CreateCall" component={StubScreen} />
+            <Stack.Screen name="Thread"       component={ThreadScreen} />
+            <Stack.Screen name="CreateCall"   component={StubScreen} />
             <Stack.Screen name="ManageMembers" component={StubScreen} />
-            <Stack.Screen name="PickCircle" component={StubScreen} />
-            <Stack.Screen name="EditCircle" component={StubScreen} />
-            <Stack.Screen name="CallsList" component={StubScreen} />
-            <Stack.Screen name="RespondCall" component={StubScreen} />
+            <Stack.Screen name="PickCircle"   component={StubScreen} />
+            <Stack.Screen name="EditCircle"   component={StubScreen} />
+            <Stack.Screen name="CallsList"    component={StubScreen} />
+            <Stack.Screen name="RespondCall"  component={StubScreen} />
           </Stack.Navigator>
         </NavigationContainer>
 
@@ -371,18 +302,13 @@ export default function App() {
   );
 }
 
-// ---------- Styles ----------
 const styles = StyleSheet.create({
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.card,
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.stroke,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: colors.card, paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.stroke,
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerLogo: { width: 28, height: 28, borderRadius: 6 },
+  headerLeft:  { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLogo:  { width: 28, height: 28, borderRadius: 6 },
   headerTitle: { color: colors.text, fontSize: 16, fontWeight: "900", maxWidth: 220 },
 });

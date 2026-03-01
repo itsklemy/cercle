@@ -1,22 +1,17 @@
 // app.config.js
 export default ({ config }) => {
-  // Par défaut on est en PROD ; mets EXPO_PUBLIC_APP_ENV=dev pour un build dev interne
   const APP_ENV = process.env.EXPO_PUBLIC_APP_ENV ?? "prod";
   const isDev = APP_ENV === "dev";
 
   const base = {
     ...config,
 
-    // 🔹 Nom affiché sur l’app (toujours "Cercle")
     name: "Cercle",
     slug: "cercle",
     scheme: "cercle",
 
-    // ✅ Version visible (App Store / Play Store)
-    version: "7.0.2",
-
-    // ✅ Runtime version (OTA)
-    runtimeVersion: "7.0.2",
+    version: "7.0.3",
+    runtimeVersion: "7.0.3",
 
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -28,19 +23,20 @@ export default ({ config }) => {
       supportsTablet: true,
       bundleIdentifier: "com.cercle.app",
       teamId: "HM95CV96WV",
-
-      // ✅ Incrémente à CHAQUE upload vers App Store Connect
-      buildNumber: "13",
+      buildNumber: "14",
 
       infoPlist: {
-        UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
-        UIBackgroundModes: isDev ? [] : ["remote-notification"],
         ITSAppUsesNonExemptEncryption: false,
+        UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
+        UIBackgroundModes: ["remote-notification"],
+        UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
+        // ✅ remote-notification toujours présent — nécessaire pour expo-notifications
+        // en build natif (App Store ET dev-client).
+        // Expo Go l'injecte lui-même, mais un build standalone en a besoin ici.
+        UIBackgroundModes: ["remote-notification"],
 
-        // Universal Links (à laisser ici si tu en as besoin)
         associatedDomains: ["applinks:stunning-pothos-07a3d3.netlify.app"],
 
-        // ATS: permissif en dev, strict en prod
         NSAppTransportSecurity: isDev
           ? {
               NSAllowsArbitraryLoads: true,
@@ -69,7 +65,6 @@ export default ({ config }) => {
             }
           : { NSAllowsArbitraryLoads: false },
 
-        // Permissions strings
         NSContactsUsageDescription:
           "Nous utilisons tes contacts pour inviter des proches dans ton cercle.",
         NSCameraUsageDescription: "Ajoute des photos à tes objets.",
@@ -78,19 +73,15 @@ export default ({ config }) => {
         NSPhotoLibraryAddUsageDescription:
           "Enregistre des photos si nécessaire.",
         NSMicrophoneUsageDescription:
-          "Enregistre de l’audio si une fonctionnalité le nécessite.",
+          "Enregistre de l'audio si une fonctionnalité le nécessite.",
 
-        // Updates
         EXUpdatesEnabled: isDev ? false : true,
       },
     },
 
     android: {
-      // ⚠️ Si un dossier android/ existe, ce champ est ignoré (package pris depuis le natif)
       package: "com.cercle.app",
-
-      // ✅ Incrémente à CHAQUE upload Google Play
-      versionCode: 55,
+      versionCode: 56,
 
       adaptiveIcon: {
         foregroundImage: "./assets/icon.png",
@@ -103,7 +94,7 @@ export default ({ config }) => {
         "WAKE_LOCK",
         "READ_CONTACTS",
         "WRITE_CONTACTS",
-        "android.permission.POST_NOTIFICATIONS", // Android 13+
+        "android.permission.POST_NOTIFICATIONS",
       ],
     },
 
@@ -112,15 +103,12 @@ export default ({ config }) => {
     extra: {
       EXPO_PUBLIC_APP_ENV: APP_ENV,
       eas: { projectId: "4de9ab1e-5c50-4931-b7a7-8c47a38d9f10" },
-
-      // Supabase (publishable côté client)
       EXPO_PUBLIC_SUPABASE_URL: "https://omfvrlcelpxoguonqzbb.supabase.co",
       EXPO_PUBLIC_SUPABASE_ANON_KEY:
         "sb_publishable_1ok4DF0c3OJ2yIozh8xvrw_6ny7xPwn",
     },
   };
 
-  // OTA updates : OFF en dev, ON en prod
   base.updates = isDev
     ? { enabled: false }
     : {
@@ -128,8 +116,10 @@ export default ({ config }) => {
         url: "https://u.expo.dev/4de9ab1e-5c50-4931-b7a7-8c47a38d9f10",
       };
 
-  // Plugins communs (deploymentTarget iOS fixé ici)
-    const commonPlugins = [
+  // ✅ expo-notifications dans commonPlugins (pas seulement en prod)
+  // Sans ça, le module natif n'est pas lié dans le build dev-client,
+  // et Constants n'est pas initialisé correctement → erreur "constants doesn't exist"
+  const commonPlugins = [
     ["expo-build-properties", { ios: { deploymentTarget: "15.1" } }],
 
     [
@@ -141,21 +131,25 @@ export default ({ config }) => {
       },
     ],
 
-    // ✅ requis pour lier correctement le module natif
     "@react-native-community/datetimepicker",
-
     "expo-contacts",
     "expo-image-picker",
     "expo-font",
+
+    // ✅ Déplacé ici : présent dans TOUS les builds (dev-client + prod)
+    // L'icône de notif n'est utilisée que sur Android/prod, pas d'impact en dev.
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/notification-icon.png",
+        color: "#57ffca",
+      },
+    ],
   ];
 
-  
   base.plugins = isDev
     ? ["expo-dev-client", ...commonPlugins]
-    : [
-        ...commonPlugins,
-        ["expo-notifications", { icon: "./assets/notification-icon.png", color: "#57ffca" }],
-      ];
+    : [...commonPlugins];
 
   return base;
 };

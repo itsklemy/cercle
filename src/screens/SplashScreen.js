@@ -151,13 +151,13 @@ export default function SplashScreen({ navigation }) {
           </TouchableOpacity>
 
           <View style={styles.linksRow}>
-            <TouchableOpacity onPress={() => openLink("https://harmonious-griffin-ec8775.netlify.app/terms")}>
+            <TouchableOpacity onPress={() => openLink("https://dapper-paletas-dd86e0.netlify.app")}>
               <Text style={styles.link}>CGU</Text>
             </TouchableOpacity>
 
             <Text style={styles.dot}>•</Text>
 
-            <TouchableOpacity onPress={() => openLink("https://harmonious-griffin-ec8775.netlify.app/privacy")}>
+            <TouchableOpacity onPress={() => openLink("https://dapper-paletas-dd86e0.netlify.app")}>
               <Text style={styles.link}>Confidentialité</Text>
             </TouchableOpacity>
 

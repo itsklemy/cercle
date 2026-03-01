@@ -1,582 +1,519 @@
-import React, { useEffect, useState, useCallback } from "react";
+
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  ScrollView, Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors } from "../theme/colors";
+import { CommonActions } from "@react-navigation/native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase, hasSupabaseConfig } from "../lib/supabase";
 import { useResponsive } from "../hooks/useResponsive";
-import { CommonActions } from "@react-navigation/native";
 
-// Email redirect
-const EMAIL_REDIRECT = "https://magnificent-queijadas-68f4f6.netlify.app/confirm";
+/* ─── TOKENS ─── */
+const MINT    = "#1DFFC2";
+const BG      = "#07090F";
+const CARD    = "#0D1018";
+const TEXT    = "#F0F2F7";
+const SUBTEXT = "#5A6478";
+const STROKE  = "rgba(255,255,255,0.08)";
 
-// Onboarding flag (par user)
-const ONBOARDING_DONE_KEY_PREFIX = "onboarding_done_v1_";
-const onboardingKeyForUser = (userId) =>
-  `${ONBOARDING_DONE_KEY_PREFIX}${String(userId || "")}`;
+/* ─── CONSTANTS ─── */
+const EMAIL_REDIRECT        = "https://magnificent-queijadas-68f4f6.netlify.app/confirm";
+const ONBOARDING_KEY_PREFIX = "onboarding_done_v1_";
+export const PENDING_INVITE_KEY = "pending_invite_v1";
+const onboardingKeyForUser  = (uid) => `${ONBOARDING_KEY_PREFIX}${String(uid || "")}`;
 
-// ✅ Mets EXACTEMENT la même clé que dans InviteScreen
-const PENDING_INVITE_KEY = "pending_invite_v1";
+const validEmail  = (s = "") => /\S+@\S+\.\S+/.test(s);
+const normalEmail = (s = "") => s.trim().toLowerCase();
 
+/* ─── CHAMP ANIMÉ ─── */
+function Field({ label, value, onChangeText, placeholder, secureTextEntry,
+  keyboardType, textContentType, autoComplete, returnKeyType, onSubmitEditing, inputRef }) {
+  const border = useRef(new Animated.Value(0)).current;
+  const onFocus = () => Animated.timing(border, { toValue: 1, duration: 180, useNativeDriver: false }).start();
+  const onBlur  = () => Animated.timing(border, { toValue: 0, duration: 180, useNativeDriver: false }).start();
+  const borderColor = border.interpolate({
+    inputRange: [0, 1], outputRange: [STROKE, "rgba(29,255,194,0.45)"],
+  });
+  return (
+    <View style={{ marginTop: 16 }}>
+      <Text style={S.label}>{label}</Text>
+      <Animated.View style={[S.inputWrap, { borderColor }]}>
+        <TextInput
+          ref={inputRef} value={value} onChangeText={onChangeText}
+          placeholder={placeholder} placeholderTextColor={SUBTEXT}
+          secureTextEntry={secureTextEntry} keyboardType={keyboardType}
+          textContentType={textContentType} autoComplete={autoComplete}
+          autoCapitalize="none" autoCorrect={false} style={S.input}
+          onFocus={onFocus} onBlur={onBlur}
+          returnKeyType={returnKeyType} onSubmitEditing={onSubmitEditing}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+/* ─── SCREEN ─── */
 export default function AuthScreen({ navigation, route }) {
   useResponsive();
 
-  // step: "choice" | "signin" | "signup"
   const initialStep =
-    route?.params?.mode === "signin"
-      ? "signin"
-      : route?.params?.mode === "signup"
-      ? "signup"
-      : "choice";
+    route?.params?.mode === "signin" ? "signin" :
+    route?.params?.mode === "signup" ? "signup" :
+    route?.params?.mode === "code"   ? "code"   : "choice";
 
-  const [step, setStep] = useState(initialStep);
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const [busy, setBusy] = useState(false);
-  const [hasConfig, setHasConfig] = useState(true);
-
-  // Confirmation UI
-  const [needsConfirm, setNeedsConfirm] = useState(false);
-  const [signupEmailSent, setSignupEmailSent] = useState(false);
-
-  // ✅ Pour rendre le flow “création -> email envoyé” ultra clair
+  const [step,            setStep]           = useState(initialStep);
+  const [email,           setEmail]          = useState("");
+  const [password,        setPassword]       = useState("");
+  const [inviteCode,      setInviteCode]     = useState(route?.params?.prefillCode || "");
+  const [busy,            setBusy]           = useState(false);
+  const [hasConfig,       setHasConfig]      = useState(true);
+  const [needsConfirm,    setNeedsConfirm]   = useState(false);
   const [signupSubmitted, setSignupSubmitted] = useState(false);
 
-  const validEmail = (s = "") => /\S+@\S+\.\S+/.test(s);
-  const normalizeEmail = (s = "") => s.trim().toLowerCase();
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
+  const passRef   = useRef(null);
 
-  const resetConfirmUI = () => {
-    setNeedsConfirm(false);
-    setSignupEmailSent(false);
-    setSignupSubmitted(false);
-  };
+  const animateIn = useCallback(() => {
+    fadeAnim.setValue(0); slideAnim.setValue(24);
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 85, friction: 11, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  useEffect(() => { animateIn(); }, [step]);
+
+  const resetUI = () => { setNeedsConfirm(false); setSignupSubmitted(false); };
 
   const ensureProfileRow = useCallback(async (userId) => {
     try {
       if (!userId) return;
-
-      const { error } = await supabase
-        .from("profiles")
+      await supabase.from("profiles")
         .upsert({ id: userId }, { onConflict: "id", ignoreDuplicates: false })
-        .select("id")
-        .single();
-
-      if (error && String(error.code) === "42P01") return;
-      if (error) console.log("[Auth] ensureProfileRow error:", error);
-    } catch (e) {
-      console.log("[Auth] ensureProfileRow catch:", e?.message || e);
-    }
+        .select("id").single();
+    } catch {}
   }, []);
 
-  // ✅ Navigation post-auth: InventoryOnboarding si pas fait, sinon AppTabs
-  // IMPORTANT: ceci ne s’exécute qu’après connexion (session existante).
+  /* ─────────────────────────────────────────
+     goToNext — routing post-auth
+     Lit l'état onboarding + code en attente
+  ───────────────────────────────────────── */
   const goToNext = useCallback(async () => {
     try {
       const { data: sessData } = await supabase.auth.getSession();
       const userId = sessData?.session?.user?.id;
-
       if (!userId) {
-        navigation.dispatch(
-          CommonActions.reset({ index: 0, routes: [{ name: "Auth" }] })
-        );
+        navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "Auth" }] }));
         return;
       }
 
-      const key = onboardingKeyForUser(userId);
-      const done = await AsyncStorage.getItem(key);
-      const hasDone = done === "1" || done === "true";
+      const done = await AsyncStorage.getItem(onboardingKeyForUser(userId));
+      const hasDoneOnboarding = done === "1" || done === "true";
 
-      let pendingInviteRaw = "";
-      try {
-        pendingInviteRaw = (await AsyncStorage.getItem(PENDING_INVITE_KEY)) || "";
-      } catch {}
+      let pendingCode = "";
+      try { pendingCode = (await AsyncStorage.getItem(PENDING_INVITE_KEY)) || ""; } catch {}
 
-      if (!hasDone) {
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [
-              { name: "InventoryOnboardingScreen", params: { pendingInviteRaw } },
-            ],
-          })
-        );
+      if (!hasDoneOnboarding) {
+        // Parcours [1] ou [2] → onboarding, le pending code sera consommé là-bas
+        navigation.dispatch(CommonActions.reset({
+          index: 0,
+          routes: [{ name: "InventoryOnboardingScreen", params: { pendingCode } }],
+        }));
         return;
       }
 
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "AppTabs" }],
-        })
-      );
-    } catch (e) {
-      console.log("[goToNext] error:", e?.message || e);
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "AppTabs" }],
-        })
-      );
+      // Parcours [3] : user existant avec code → rejoindre directement
+      if (pendingCode.trim()) {
+        try {
+          await supabase.rpc("join_circle_by_token_or_code_v2", { p_code: pendingCode.trim() });
+        } catch {}
+        try { await AsyncStorage.removeItem(PENDING_INVITE_KEY); } catch {}
+      }
+
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "AppTabs" }] }));
+    } catch {
+      navigation.dispatch(CommonActions.reset({ index: 0, routes: [{ name: "AppTabs" }] }));
     }
   }, [navigation]);
 
-  const humanizeError = (err) => {
-    const msg = String(err?.message || "").toLowerCase();
-    const code = String(err?.error_code || err?.code || "").toLowerCase();
-
-    if (code.includes("user_already_exists") || msg.includes("already registered")) {
-      return "Un compte existe déjà avec cet email.";
-    }
-    if (code === "invalid_credentials" || msg.includes("invalid login")) {
-      return "Identifiants incorrects.";
-    }
-    if (msg.includes("email not confirmed") || code.includes("email_not_confirmed")) {
-      setNeedsConfirm(true);
-      return "Email non confirmé. Confirme ton email puis réessaie.";
-    }
-    if (err?.status === 429 || msg.includes("rate limit")) {
-      return "Trop de tentatives : réessaie dans quelques minutes.";
-    }
-    if (msg.includes("network request failed") || msg.includes("failed to fetch")) {
-      return "Problème de connexion internet.";
-    }
-    return err?.message || "Une erreur est survenue.";
-  };
-
-  // Route param mode -> step
-  useEffect(() => {
-    const m = route?.params?.mode;
-    if (m === "signin" || m === "signup") {
-      setStep(m);
-      resetConfirmUI();
-    }
-  }, [route?.params?.mode]);
-
-  // Config + auto-session
+  /* ─── Setup ─── */
   useEffect(() => {
     const ok = hasSupabaseConfig();
     setHasConfig(ok);
-
-    if (!ok) {
-      Alert.alert(
-        "Configuration requise",
-        "Renseigne SUPABASE_URL et SUPABASE_ANON_KEY dans app.config.js"
-      );
-      return;
-    }
+    if (!ok) return;
 
     (async () => {
       try {
         const { data: sess } = await supabase.auth.getSession();
-        const session = sess?.session;
-        if (session?.user?.id) {
-          await ensureProfileRow(session.user.id);
+        if (sess?.session?.user?.id) {
+          await ensureProfileRow(sess.session.user.id);
           await goToNext();
         }
       } catch {}
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, session) => {
       if (session?.user?.id) {
         await ensureProfileRow(session.user.id);
         await goToNext();
       }
     });
-
     return () => sub?.subscription?.unsubscribe?.();
   }, [ensureProfileRow, goToNext]);
 
-  // ✅ Connexion
-  const signIn = async () => {
-    const e = normalizeEmail(email);
-    if (!validEmail(e)) return Alert.alert("Email invalide", "Entre une adresse valide.");
-    if ((password || "").length < 6)
-      return Alert.alert("Mot de passe trop court", "6 caractères minimum.");
+  useEffect(() => {
+    const m = route?.params?.mode;
+    if (m) { setStep(m); resetUI(); }
+    if (route?.params?.prefillCode) setInviteCode(route.params.prefillCode);
+  }, [route?.params?.mode, route?.params?.prefillCode]);
 
-    setBusy(true);
-    // En connexion, on ne reset pas needsConfirm si on veut afficher le bloc, mais on reset l’état signup
-    setSignupEmailSent(false);
-    setSignupSubmitted(false);
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: e,
-        password,
-      });
-      if (error) throw error;
-
-      const userId = data?.user?.id || data?.session?.user?.id;
-      if (userId) {
-        await ensureProfileRow(userId);
-        await goToNext();
-      } else {
-        Alert.alert("Connexion", "Impossible de récupérer la session. Réessaie.");
-      }
-    } catch (err) {
-      Alert.alert("Connexion", humanizeError(err));
-    } finally {
-      setBusy(false);
+  /* ─── Errors ─── */
+  const humanizeError = (err) => {
+    const msg  = String(err?.message || "").toLowerCase();
+    const code = String(err?.error_code || err?.code || "").toLowerCase();
+    if (code.includes("user_already_exists") || msg.includes("already registered"))
+      return "Un compte existe déjà avec cet email.";
+    if (code === "invalid_credentials" || msg.includes("invalid login"))
+      return "Email ou mot de passe incorrect.";
+    if (msg.includes("email not confirmed") || code.includes("email_not_confirmed")) {
+      setNeedsConfirm(true); return "Email non confirmé — vérifie tes mails.";
     }
+    if (err?.status === 429 || msg.includes("rate limit"))
+      return "Trop de tentatives — attends quelques minutes.";
+    if (msg.includes("network") || msg.includes("fetch"))
+      return "Pas de connexion internet.";
+    return err?.message || "Une erreur est survenue.";
   };
 
-  // ✅ Création de compte
-  // IMPORTANT: on NE lance PAS InventoryOnboarding ici si confirm email ON.
-  // On force la validation email AVANT onboarding, comme demandé.
-  const signUp = async () => {
-    const e = normalizeEmail(email);
-    if (!validEmail(e)) return Alert.alert("Email invalide", "Entre une adresse valide.");
-    if ((password || "").length < 6)
-      return Alert.alert("Mot de passe trop court", "6 caractères minimum.");
-
+  /* ─── Sign In ─── */
+  const signIn = async () => {
+    const e = normalEmail(email);
+    if (!validEmail(e)) return Alert.alert("Email", "Adresse invalide.");
+    if ((password || "").length < 6) return Alert.alert("Mot de passe", "6 caractères minimum.");
     setBusy(true);
-    resetConfirmUI();
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: e, password });
+      if (error) throw error;
+      const userId = data?.user?.id || data?.session?.user?.id;
+      if (userId) { await ensureProfileRow(userId); await goToNext(); }
+    } catch (err) { Alert.alert("Connexion", humanizeError(err)); }
+    finally { setBusy(false); }
+  };
 
+  /* ─── Sign Up ─── */
+  const signUp = async () => {
+    const e = normalEmail(email);
+    if (!validEmail(e)) return Alert.alert("Email", "Adresse invalide.");
+    if ((password || "").length < 6) return Alert.alert("Mot de passe", "6 caractères minimum.");
+    setBusy(true); resetUI();
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: e,
-        password,
-        options: { emailRedirectTo: EMAIL_REDIRECT },
+        email: e, password, options: { emailRedirectTo: EMAIL_REDIRECT },
       });
       if (error) throw error;
-
-      // Si confirmation désactivée → session directe → goToNext (et donc onboarding)
       if (data?.session?.user?.id) {
         await ensureProfileRow(data.session.user.id);
         await goToNext();
         return;
       }
-
-      // ✅ Confirmation requise → on reste ici, on n’ouvre PAS l’onboarding
       setNeedsConfirm(true);
-      setSignupEmailSent(true);
       setSignupSubmitted(true);
-
-      // Optionnel: vider le mdp (évite confusion)
       setPassword("");
-
-      Alert.alert("Compte créé", "Un email de confirmation vient d’être envoyé.");
-    } catch (err) {
-      Alert.alert("Création de compte", humanizeError(err));
-    } finally {
-      setBusy(false);
-    }
+    } catch (err) { Alert.alert("Inscription", humanizeError(err)); }
+    finally { setBusy(false); }
   };
 
-  const resendConfirmation = async () => {
-    const e = normalizeEmail(email);
-    if (!validEmail(e)) {
-      return Alert.alert("Email invalide", "Renseigne ton email pour renvoyer la confirmation.");
-    }
-
+  /* ─── Resend ─── */
+  const resend = async () => {
+    const e = normalEmail(email);
+    if (!validEmail(e)) return Alert.alert("Email", "Saisis ton email d'abord.");
     setBusy(true);
     try {
       const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: e,
-        options: { emailRedirectTo: EMAIL_REDIRECT },
+        type: "signup", email: e, options: { emailRedirectTo: EMAIL_REDIRECT },
       });
       if (error) throw error;
-      Alert.alert("Email renvoyé", "Regarde tes mails (spams inclus).");
-    } catch (err) {
-      Alert.alert("Renvoi impossible", humanizeError(err));
-    } finally {
-      setBusy(false);
-    }
+      Alert.alert("Email renvoyé ✓", "Vérifie tes spams.");
+    } catch (err) { Alert.alert("Renvoi", humanizeError(err)); }
+    finally { setBusy(false); }
   };
 
-  // ---------------- UI ----------------
+  /* ─── Code d'invitation (parcours [2]) ─── */
+  const handleCode = async () => {
+    const code = String(inviteCode || "").trim().toUpperCase();
+    if (!code) return Alert.alert("Code", "Saisis le code d'invitation.");
+    try { await AsyncStorage.setItem(PENDING_INVITE_KEY, code); } catch {}
+    resetUI();
+    setStep("signup");
+  };
+
+  /* ─── RENDER ─── */
   const inChoice = step === "choice";
+  const inCode   = step === "code";
   const inSignin = step === "signin";
   const inSignup = step === "signup";
 
-  const screenTitle = inChoice ? "Bienvenue" : inSignin ? "Connexion" : "Créer un compte";
-  const screenHelper = inChoice
-    ? "Choisis une option."
-    : inSignin
-    ? "Entre ton email et ton mot de passe."
-    : signupSubmitted
-    ? "Confirme ton email, puis connecte-toi."
-    : "Entre ton email et ton mot de passe.";
-
-  const primaryLabel = inSignin ? "Se connecter" : "Créer mon compte";
-  const onPrimary = () => (inSignin ? signIn() : signUp());
-
   return (
-    <KeyboardAvoidingView
-      style={styles.kav}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.card}>
-          <Text style={styles.h1}>{screenTitle}</Text>
-          <Text style={styles.helper}>{screenHelper}</Text>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={S.scroll}
+        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Animated.View style={[S.inner, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
 
-          {/* ✅ ÉTAPE 1 : CHOIX — 2 boutons identiques (même taille + fond vert) */}
-          {inChoice && (
-            <View style={{ marginTop: 8 }}>
-              <TouchableOpacity
-                onPress={() => {
-                  resetConfirmUI();
-                  setStep("signin");
-                }}
-                style={[styles.choiceBtn, (busy || !hasConfig) && { opacity: 0.6 }]}
-                activeOpacity={0.9}
-                disabled={busy || !hasConfig}
-              >
-                <Text style={styles.choiceTxt}>J’ai déjà un compte</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  resetConfirmUI();
-                  setStep("signup");
-                }}
-                style={[styles.choiceBtn, (busy || !hasConfig) && { opacity: 0.6 }]}
-                activeOpacity={0.9}
-                disabled={busy || !hasConfig}
-              >
-                <Text style={styles.choiceTxt}>Créer un compte</Text>
-              </TouchableOpacity>
+          {/* Logo */}
+          <View style={S.logoWrap}>
+            <View style={S.logoMark}>
+              <MaterialCommunityIcons name="account-group" size={28} color={MINT} />
             </View>
-          )}
+            <Text style={S.appName}>Cercle</Text>
+            <Text style={S.tagline}>Moins acheter. Mieux vivre ensemble.</Text>
+          </View>
 
-          {/* ✅ ÉTAPE 2 : FORM (connexion ou création) */}
-          {!inChoice && (
-            <>
-              {/* Formulaire affiché tant qu’on n’a pas soumis le signup,
-                  ou toujours en signin */}
-              {(inSignin || !signupSubmitted) && (
-                <>
-                  <Text style={styles.label}>Email</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    placeholder="toi@mail.com"
-                    placeholderTextColor={colors.subtext}
-                    autoCapitalize="none"
-                    textContentType="emailAddress"
-                    autoComplete="email"
-                    autoCorrect={false}
-                  />
+          <View style={S.card}>
 
-                  <Text style={styles.label}>Mot de passe</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    placeholder="••••••••"
-                    placeholderTextColor={colors.subtext}
-                    textContentType="password"
-                    autoComplete="password"
-                  />
+            {/* ══ CHOICE ══ */}
+            {inChoice && <>
+              <Text style={S.cardTitle}>Bienvenue</Text>
+              <Text style={S.cardSub}>Partage et emprunte dans ton cercle de confiance.</Text>
 
-                  <TouchableOpacity
-                    onPress={onPrimary}
-                    style={[styles.cta, (busy || !hasConfig) && { opacity: 0.6 }]}
-                    activeOpacity={0.9}
-                    disabled={busy || !hasConfig}
-                  >
-                    {busy ? (
-                      <ActivityIndicator color={colors.bg} />
-                    ) : (
-                      <Text style={styles.ctaTxt}>{primaryLabel}</Text>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
+              <TouchableOpacity style={[S.primaryBtn, { marginTop: 24 }]}
+                onPress={() => { resetUI(); setStep("signup"); }}
+                activeOpacity={0.88} disabled={!hasConfig}>
+                <Text style={S.primaryTxt}>Créer un compte</Text>
+              </TouchableOpacity>
 
-              {/* ✅ Après création: bloc confirmation clair + actions utiles */}
-              {inSignup && signupSubmitted && (
-                <View style={styles.confirmBox}>
-                  <Text style={styles.confirmTitle}>Email de confirmation envoyé</Text>
-                  <Text style={styles.confirmText}>
-                    Confirme ton email (spams inclus), puis reviens te connecter.
-                  </Text>
+              <TouchableOpacity style={[S.secondaryBtn, { marginTop: 10 }]}
+                onPress={() => { resetUI(); setStep("signin"); }}
+                activeOpacity={0.88} disabled={!hasConfig}>
+                <Text style={S.secondaryTxt}>J'ai déjà un compte</Text>
+              </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={resendConfirmation}
-                    style={styles.resendBtn}
-                    disabled={busy || !hasConfig}
-                  >
-                    <Text style={styles.resendTxt}>Renvoyer l’email</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => {
-                      // On garde l’email saisi, on passe en connexion
-                      setStep("signin");
-                      setNeedsConfirm(false);
-                      // on laisse signupSubmitted à false en signin
-                      setSignupSubmitted(false);
-                      setSignupEmailSent(false);
-                    }}
-                    style={styles.smallGhost}
-                    disabled={busy}
-                    activeOpacity={0.9}
-                  >
-                    <Text style={styles.smallGhostTxt}>J’ai confirmé → Me connecter</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* ✅ En signin: si email pas confirmé -> bloc + renvoi */}
-              {inSignin && needsConfirm && (
-                <View style={styles.confirmBox}>
-                  <Text style={styles.confirmTitle}>Email non confirmé</Text>
-                  <Text style={styles.confirmText}>
-                    Confirme ton email puis reconnecte-toi.
-                  </Text>
-
-                  <TouchableOpacity
-                    onPress={resendConfirmation}
-                    style={styles.resendBtn}
-                    disabled={busy || !hasConfig}
-                  >
-                    <Text style={styles.resendTxt}>Renvoyer l’email</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* ✅ Switch simple (pas de “revenir aux choix”) */}
-              <View style={styles.switchRow}>
-                <TouchableOpacity
-                  onPress={() => {
-                    resetConfirmUI();
-                    setStep(inSignin ? "signup" : "signin");
-                  }}
-                  disabled={busy}
-                  activeOpacity={0.9}
-                >
-                  <Text style={styles.switchTxt}>
-                    {inSignin ? "Créer un compte" : "J’ai déjà un compte"}
-                  </Text>
-                </TouchableOpacity>
+              <View style={S.separator}>
+                <View style={S.sepLine} /><Text style={S.sepTxt}>ou</Text><View style={S.sepLine} />
               </View>
-            </>
-          )}
-        </View>
+
+              {/* Parcours [2] — toujours visible */}
+              <TouchableOpacity style={S.codeBtn} onPress={() => setStep("code")} activeOpacity={0.88}>
+                <MaterialCommunityIcons name="key-outline" size={16} color={MINT} />
+                <Text style={S.codeTxt}>J'ai un code d'invitation</Text>
+              </TouchableOpacity>
+            </>}
+
+            {/* ══ CODE ══ */}
+            {inCode && <>
+              <TouchableOpacity onPress={() => setStep("choice")} style={S.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={18} color={SUBTEXT} />
+                <Text style={S.backTxt}>Retour</Text>
+              </TouchableOpacity>
+              <Text style={S.cardTitle}>Code d'invitation</Text>
+              <Text style={S.cardSub}>Saisis le code reçu par SMS. On crée ton compte ensuite.</Text>
+
+              <Field label="Code d'invitation" value={inviteCode}
+                onChangeText={(v) => setInviteCode(v.toUpperCase())}
+                placeholder="Ex: FAMILLE-7K2X"
+                textContentType="oneTimeCode" returnKeyType="done"
+                onSubmitEditing={handleCode} />
+
+              <TouchableOpacity
+                style={[S.primaryBtn, { marginTop: 20, opacity: inviteCode.trim() ? 1 : 0.4 }]}
+                onPress={handleCode} activeOpacity={0.88} disabled={!inviteCode.trim()}>
+                <Text style={S.primaryTxt}>Continuer →</Text>
+              </TouchableOpacity>
+
+              <Text style={S.hint}>Le code est sauvegardé. Tu rejoindras le cercle après inscription.</Text>
+            </>}
+
+            {/* ══ SIGNIN ══ */}
+            {inSignin && <>
+              <TouchableOpacity onPress={() => setStep("choice")} style={S.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={18} color={SUBTEXT} />
+                <Text style={S.backTxt}>Retour</Text>
+              </TouchableOpacity>
+              <Text style={S.cardTitle}>Connexion</Text>
+
+              <Field label="Email" value={email} onChangeText={setEmail}
+                placeholder="toi@mail.com" keyboardType="email-address"
+                textContentType="emailAddress" autoComplete="email"
+                returnKeyType="next" onSubmitEditing={() => passRef.current?.focus()} />
+
+              <Field label="Mot de passe" value={password} onChangeText={setPassword}
+                placeholder="••••••••" secureTextEntry
+                textContentType="password" autoComplete="password"
+                returnKeyType="done" onSubmitEditing={signIn} inputRef={passRef} />
+
+              {needsConfirm && (
+                <View style={S.infoBox}>
+                  <MaterialCommunityIcons name="email-outline" size={16} color={MINT} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={S.infoTitle}>Email non confirmé</Text>
+                    <Text style={S.infoSub}>Vérifie tes mails et spams.</Text>
+                    <TouchableOpacity onPress={resend} disabled={busy} style={{ marginTop: 6 }}>
+                      <Text style={{ color: MINT, fontWeight: "800", fontSize: 13 }}>Renvoyer →</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              <TouchableOpacity style={[S.primaryBtn, { marginTop: 20, opacity: busy ? 0.7 : 1 }]}
+                onPress={signIn} activeOpacity={0.88} disabled={busy || !hasConfig}>
+                {busy ? <ActivityIndicator color={BG} /> : <Text style={S.primaryTxt}>Se connecter</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={S.switchBtn}
+                onPress={() => { resetUI(); setStep("signup"); }} disabled={busy}>
+                <Text style={S.switchTxt}>
+                  Pas de compte ? <Text style={{ color: MINT }}>Créer un compte</Text>
+                </Text>
+              </TouchableOpacity>
+            </>}
+
+            {/* ══ SIGNUP ══ */}
+            {inSignup && !signupSubmitted && <>
+              <TouchableOpacity onPress={() => setStep("choice")} style={S.backBtn}>
+                <MaterialCommunityIcons name="arrow-left" size={18} color={SUBTEXT} />
+                <Text style={S.backTxt}>Retour</Text>
+              </TouchableOpacity>
+              <Text style={S.cardTitle}>Créer un compte</Text>
+
+              {!!inviteCode.trim() && (
+                <View style={S.infoBox}>
+                  <MaterialCommunityIcons name="key" size={16} color={MINT} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={S.infoTitle}>Code <Text style={{ color: MINT }}>{inviteCode}</Text> enregistré</Text>
+                    <Text style={S.infoSub}>Tu rejoindras le cercle automatiquement après inscription.</Text>
+                  </View>
+                </View>
+              )}
+
+              <Field label="Email" value={email} onChangeText={setEmail}
+                placeholder="toi@mail.com" keyboardType="email-address"
+                textContentType="emailAddress" autoComplete="email"
+                returnKeyType="next" onSubmitEditing={() => passRef.current?.focus()} />
+
+              <Field label="Mot de passe" value={password} onChangeText={setPassword}
+                placeholder="••••••••" secureTextEntry
+                textContentType="newPassword" autoComplete="password-new"
+                returnKeyType="done" onSubmitEditing={signUp} inputRef={passRef} />
+
+              <TouchableOpacity style={[S.primaryBtn, { marginTop: 20, opacity: busy ? 0.7 : 1 }]}
+                onPress={signUp} activeOpacity={0.88} disabled={busy || !hasConfig}>
+                {busy ? <ActivityIndicator color={BG} /> : <Text style={S.primaryTxt}>Créer mon compte →</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={S.switchBtn}
+                onPress={() => { resetUI(); setStep("signin"); }} disabled={busy}>
+                <Text style={S.switchTxt}>
+                  Déjà un compte ? <Text style={{ color: MINT }}>Se connecter</Text>
+                </Text>
+              </TouchableOpacity>
+            </>}
+
+            {/* ══ EMAIL ENVOYÉ ══ */}
+            {inSignup && signupSubmitted && <>
+              <View style={{ alignItems: "center", gap: 10, paddingVertical: 4 }}>
+                <View style={S.confirmIcon}>
+                  <MaterialCommunityIcons name="email-check-outline" size={32} color={MINT} />
+                </View>
+                <Text style={S.cardTitle}>Vérifie tes mails</Text>
+                <Text style={S.cardSub}>
+                  Lien envoyé à{"\n"}
+                  <Text style={{ color: TEXT, fontWeight: "700" }}>{normalEmail(email)}</Text>
+                </Text>
+                {!!inviteCode.trim() && (
+                  <View style={[S.infoBox, { width: "100%" }]}>
+                    <MaterialCommunityIcons name="key" size={14} color={MINT} />
+                    <Text style={{ color: SUBTEXT, fontSize: 12, flex: 1, lineHeight: 17 }}>
+                      Code <Text style={{ color: MINT, fontWeight: "900" }}>{inviteCode}</Text> sauvegardé — tu rejoindras le cercle après confirmation.
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity style={[S.primaryBtn, { marginTop: 24 }]}
+                onPress={() => { resetUI(); setStep("signin"); }}>
+                <Text style={S.primaryTxt}>J'ai confirmé → Me connecter</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={{ alignItems: "center", paddingVertical: 12 }}
+                onPress={resend} disabled={busy}>
+                <Text style={{ color: SUBTEXT, fontWeight: "700", fontSize: 14 }}>Renvoyer l'email</Text>
+              </TouchableOpacity>
+            </>}
+
+          </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  kav: { flex: 1, backgroundColor: colors.bg },
+/* ─── STYLES ─── */
+const S = StyleSheet.create({
+  scroll: { flexGrow: 1, justifyContent: "center", padding: 20, paddingVertical: 48 },
+  inner:  { width: "100%", maxWidth: 440, alignSelf: "center" },
 
-  scroll: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: 16,
+  logoWrap: { alignItems: "center", marginBottom: 32 },
+  logoMark: {
+    width: 60, height: 60, borderRadius: 20,
+    backgroundColor: "rgba(29,255,194,0.10)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.22)",
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
+  },
+  appName: { color: TEXT, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 },
+  tagline: { color: SUBTEXT, fontSize: 14, marginTop: 4 },
+
+  card:      { backgroundColor: CARD, borderRadius: 22, borderWidth: 1, borderColor: STROKE, padding: 20 },
+  cardTitle: { color: TEXT, fontSize: 22, fontWeight: "900", letterSpacing: -0.3 },
+  cardSub:   { color: SUBTEXT, fontSize: 14, marginTop: 6, lineHeight: 20 },
+
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 },
+  backTxt: { color: SUBTEXT, fontWeight: "700", fontSize: 14 },
+
+  label:    { color: SUBTEXT, fontSize: 13, fontWeight: "700", marginBottom: 6 },
+  inputWrap: { borderRadius: 13, borderWidth: 1, overflow: "hidden" },
+  input:    { backgroundColor: "rgba(255,255,255,0.04)", color: TEXT, fontSize: 15, paddingHorizontal: 14, paddingVertical: 13 },
+
+  primaryBtn:  { backgroundColor: MINT, borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center" },
+  primaryTxt:  { color: BG, fontWeight: "900", fontSize: 16 },
+  secondaryBtn: {
+    borderRadius: 14, height: 52, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: STROKE, backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  secondaryTxt: { color: TEXT, fontWeight: "800", fontSize: 15 },
+
+  switchBtn: { alignItems: "center", paddingVertical: 14 },
+  switchTxt: { color: SUBTEXT, fontSize: 14 },
+
+  separator: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 18 },
+  sepLine:   { flex: 1, height: 1, backgroundColor: STROKE },
+  sepTxt:    { color: SUBTEXT, fontSize: 12, fontWeight: "700" },
+
+  codeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 14, borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.22)",
+    backgroundColor: "rgba(29,255,194,0.06)",
+  },
+  codeTxt: { color: MINT, fontWeight: "800", fontSize: 14 },
+
+  infoBox: {
+    flexDirection: "row", gap: 10, alignItems: "flex-start",
+    backgroundColor: "rgba(29,255,194,0.06)", borderRadius: 12,
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.18)", padding: 12, marginTop: 14,
+  },
+  infoTitle: { color: TEXT, fontWeight: "800", fontSize: 13, marginBottom: 2 },
+  infoSub:   { color: SUBTEXT, fontSize: 12, lineHeight: 16 },
+
+  confirmIcon: {
+    width: 68, height: 68, borderRadius: 22,
+    backgroundColor: "rgba(29,255,194,0.10)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.22)",
+    alignItems: "center", justifyContent: "center",
   },
 
-  card: {
-    backgroundColor: "#0F1220",
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    borderRadius: 18,
-    padding: 16,
-  },
-
-  h1: {
-    color: colors.text,
-    fontSize: 24,
-    fontWeight: "900",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  helper: {
-    color: colors.subtext,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-
-  // ✅ Choice buttons: IDENTIQUES + fond vert + même taille
-  choiceBtn: {
-    backgroundColor: colors.mint,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 56,
-    marginBottom: 12,
-  },
-  choiceTxt: {
-    color: colors.bg,
-    fontWeight: "900",
-    fontSize: 17,
-  },
-
-  label: { color: colors.subtext, marginTop: 12, marginBottom: 6 },
-  input: {
-    backgroundColor: "#151826",
-    borderColor: colors.stroke,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    color: colors.text,
-  },
-
-  cta: {
-    marginTop: 18,
-    backgroundColor: colors.mint,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    minHeight: 56,
-    justifyContent: "center",
-  },
-  ctaTxt: { color: colors.bg, fontWeight: "900", fontSize: 17 },
-
-  confirmBox: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "#151826",
-  },
-  confirmTitle: { color: colors.text, fontWeight: "900", marginBottom: 6 },
-  confirmText: { color: colors.subtext, marginBottom: 10 },
-
-  resendBtn: { alignItems: "center", paddingVertical: 8 },
-  resendTxt: { color: colors.mint, fontWeight: "900" },
-
-  smallGhost: {
-    marginTop: 6,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    alignItems: "center",
-  },
-  smallGhostTxt: { color: colors.text, fontWeight: "900" },
-
-  switchRow: {
-    marginTop: 14,
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  switchTxt: {
-    color: colors.subtext,
-    fontWeight: "800",
-    paddingVertical: 6,
-  },
+  hint: { color: SUBTEXT, fontSize: 12, textAlign: "center", marginTop: 12, lineHeight: 18 },
 });

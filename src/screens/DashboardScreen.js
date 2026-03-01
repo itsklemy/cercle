@@ -1,4 +1,3 @@
-// src/screens/DashboardScreen.js
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   View,
@@ -6,586 +5,459 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Linking,
   Alert,
-  Modal,
   Platform,
   LayoutAnimation,
   UIManager,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors as themeColors } from "../theme/colors";
 import { supabase, hasSupabaseConfig } from "../lib/supabase";
 import { useResponsive } from "../hooks/useResponsive";
 
-/* -------------------- Theme fallback (anti-crash) -------------------- */
+/* ─── Theme ─── */
 const C = themeColors || {};
 const colors = {
-  bg: C.bg ?? "#0B0E14",
-  text: C.text ?? "#F3F4F6",
+  bg:      C.bg      ?? "#0B0E14",
+  text:    C.text    ?? "#F3F4F6",
   subtext: C.subtext ?? "#9AA3B2",
-  mint: C.mint ?? "#1DFFC2",
-  card: C.card ?? "rgba(255,255,255,0.04)",
-  stroke: C.stroke ?? "rgba(255,255,255,0.10)",
-  success: C.success ?? "#36d399",
-  danger: C.danger ?? "#ff6b6b",
+  mint:    C.mint    ?? "#1DFFC2",
+  card:    C.card    ?? "rgba(255,255,255,0.04)",
+  stroke:  C.stroke  ?? "rgba(255,255,255,0.10)",
+  danger:  C.danger  ?? "#ff6b6b",
 };
 
-const CIRCLE_ROUTE_CANDIDATES = ["Circle", "CircleScreen", "Circles"]; // dans ton App.js: Tab = "Circle"
-const RESERVATIONS_ROUTE_CANDIDATES = ["MyReservations", "Reservations", "ReservationsScreen"]; // dans ton App.js: Stack = "MyReservations"
-
-// Android LayoutAnimation enable
 if (Platform.OS === "android" && UIManager?.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+/* ─── Navigation helper ─── */
+// Remonte l'arbre jusqu'à trouver un navigator qui connaît routeName.
+function useSmartNav(navigation) {
+  return useCallback((routeName, params) => {
+    let nav = navigation;
+    while (nav) {
+      const names = nav.getState?.()?.routeNames;
+      if (Array.isArray(names) && names.includes(routeName)) {
+        nav.navigate(routeName, params);
+        return;
+      }
+      nav = nav.getParent?.();
+    }
+    // Fallback : essai direct depuis le root
+    navigation.navigate(routeName, params);
+  }, [navigation]);
+}
+
+/* ─── Screen ─── */
 export default function DashboardScreen({ navigation }) {
   const { contentMax } = useResponsive?.() || {};
+  const navTo = useSmartNav(navigation);
 
-  const [pendingCount, setPendingCount] = useState(0);
-  const [itemsCount, setItemsCount] = useState(0);
-
-  const [toReturn, setToReturn] = useState([]);
-  const [toGiveOrPickup, setToGiveOrPickup] = useState([]);
-
-  const [calls, setCalls] = useState([]);
-  const [callsCount, setCallsCount] = useState(0);
-
-  // fallback si la route n’existe pas vraiment -> modale
-  const [reservationsModalOpen, setReservationsModalOpen] = useState(false);
-  const [reservationsAll, setReservationsAll] = useState([]);
-
-  // Accordéons
-  const [openKey, setOpenKey] = useState("return"); // 'return' | 'give' | 'calls' | 'shortcuts'
-
-  const animateLayout = () => {
-    try {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    } catch {}
-  };
+  const [loading,        setLoading]        = useState(true);
+  const [itemsCount,     setItemsCount]     = useState(0);
+  const [circlesCount,   setCirclesCount]   = useState(0);
+  const [pendingCount,   setPendingCount]   = useState(0);
+  const [toReturn,       setToReturn]       = useState([]);
+  const [toGive,         setToGive]         = useState([]);
+  const [calls,          setCalls]          = useState([]);
+  const [openKey,        setOpenKey]        = useState(null);
 
   const toggle = (key) => {
-    animateLayout();
-    setOpenKey((prev) => (prev === key ? null : key));
+    try { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); } catch {}
+    setOpenKey((p) => (p === key ? null : key));
   };
 
-  /* -------------------- NAVIGATION ROBUSTE (Tab -> Stack) -------------------- */
-  // Cherche le navigator (tabs/stack/parent) qui connaît routeName
-  const findNavWithRoute = useCallback(
-    (routeName) => {
-      let nav = navigation;
-      while (nav && typeof nav.getState === "function") {
-        const state = nav.getState?.();
-        const names = state?.routeNames;
-        if (Array.isArray(names) && names.includes(routeName)) return nav;
-        nav = nav.getParent?.();
-      }
-      return null;
-    },
-    [navigation]
-  );
+  /* ─── Load ─── */
+  const load = useCallback(async () => {
+    if (!hasSupabaseConfig?.()) { setLoading(false); return; }
+    const { data: uData } = await supabase.auth.getUser();
+    const user = uData?.user;
+    if (!user) { setLoading(false); return; }
 
-  const navigateAny = useCallback(
-    (routes, params) => {
-      for (const r of routes) {
-        const navTarget = findNavWithRoute(r);
-        if (navTarget) {
-          navTarget.navigate(r, params);
-          return true;
-        }
-      }
-      return false;
-    },
-    [findNavWithRoute]
-  );
-
-  const openCircleTab = useCallback(
-    (tab) => {
-      // tab attendu: 'browse' | 'calls' | 'mine'
-      const ok = navigateAny(CIRCLE_ROUTE_CANDIDATES, { tab });
-      if (!ok) {
-        Alert.alert(
-          "Navigation",
-          "Impossible d’ouvrir l’écran Cercle. Vérifie que la route Tab 'Circle' existe."
-        );
-      }
-    },
-    [navigateAny]
-  );
-
-  const openReservations = useCallback(
-    (filter) => {
-      const ok = navigateAny(RESERVATIONS_ROUTE_CANDIDATES, { filter, view: "list" });
-      if (!ok) setReservationsModalOpen(true);
-    },
-    [navigateAny]
-  );
-
-  const openOndes = useCallback(() => openCircleTab("calls"), [openCircleTab]);
-  const openMine = useCallback(() => openCircleTab("mine"), [openCircleTab]);
-  const openCircles = useCallback(() => openCircleTab("browse"), [openCircleTab]);
-
-  const openUrl = useCallback(async (url) => {
+    setLoading(true);
     try {
-      const can = await Linking.canOpenURL(url);
-      if (!can) throw new Error("URL non supportée");
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Lien", "Impossible d’ouvrir ce lien.");
+      // Cercles
+      const { count: cc } = await supabase
+        .from("circle_members").select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      setCirclesCount(cc || 0);
+
+      // Mes objets
+      const { count: ic } = await supabase
+        .from("items").select("*", { count: "exact", head: true })
+        .eq("owner_id", user.id);
+      setItemsCount(ic || 0);
+
+      // Réservations
+      const { data: allRes } = await supabase
+        .from("reservations")
+        .select("id,item_id,item_title,owner_id,borrower_id,start_at,end_at,status")
+        .or(`borrower_id.eq.${user.id},owner_id.eq.${user.id}`)
+        .order("start_at", { ascending: true });
+
+      const res = allRes || [];
+      const now = new Date();
+
+      setPendingCount(res.filter((r) => r.status === "pending").length);
+
+      setToReturn(
+        res
+          .filter((r) => r.borrower_id === user.id && r.status === "accepted")
+          .map((r) => ({
+            id: r.id,
+            title: r.item_title || "Objet",
+            end_at: r.end_at,
+            overdue: new Date(r.end_at) < now,
+            remaining: timeLeftLabel(new Date(r.end_at), now),
+          }))
+          .sort((a, b) => (a.overdue === b.overdue ? 0 : a.overdue ? -1 : 1))
+          .slice(0, 5)
+      );
+
+      setToGive(
+        res
+          .filter((r) => r.owner_id === user.id && ["accepted", "pending"].includes(r.status))
+          .map((r) => ({
+            id: r.id,
+            title: r.item_title || "Objet",
+            start_at: r.start_at,
+            status: r.status,
+            when: new Date(r.start_at) > now
+              ? startsInLabel(new Date(r.start_at), now)
+              : "en cours",
+          }))
+          .sort((a, b) => (a.status === "pending" ? -1 : 1))
+          .slice(0, 5)
+      );
+
+      // Ondes récentes
+      const { data: myCalls } = await supabase
+        .from("calls")
+        .select("id,message,status,created_at")
+        .eq("author_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      setCalls(myCalls || []);
+
+    } catch (e) {
+      console.log("[Dashboard] load error:", e?.message);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  /* -------------------- Data loading -------------------- */
   useEffect(() => {
-    const load = async () => {
-      if (!hasSupabaseConfig?.()) return;
-
-      const { data: uData, error: uErr } = await supabase.auth.getUser();
-      const user = uData?.user;
-      if (uErr || !user) return;
-
-      // Mes annonces count
-      try {
-        const { count: itemsOwned, error } = await supabase
-          .from("items")
-          .select("*", { count: "exact", head: true })
-          .eq("owner_id", user.id);
-        if (!error) setItemsCount(itemsOwned || 0);
-      } catch {}
-
-      // Reservations (table)
-      let allRes = [];
-      try {
-        const res = await supabase
-          .from("reservations")
-          .select("id,item_id,item_title,owner_id,borrower_id,start_at,end_at,status,created_at")
-          .or(`borrower_id.eq.${user.id},owner_id.eq.${user.id}`)
-          .order("start_at", { ascending: true });
-
-        allRes = res?.data || [];
-      } catch {
-        allRes = [];
-      }
-
-      setReservationsAll(allRes || []);
-      setPendingCount((allRes || []).filter((r) => r.status === "pending").length);
-
-      // Noms visibles (optionnel)
-      let namesMap = {};
-      try {
-        const rpcRes = await supabase.rpc("visible_member_names");
-        const visibleNames = rpcRes?.data;
-        if (Array.isArray(visibleNames)) {
-          for (const u of visibleNames) namesMap[u.id] = u.name || "—";
-        }
-      } catch {}
-
-      const now = new Date();
-
-      // À rendre (je suis borrower)
-      const mineToReturn = (allRes || [])
-        .filter((r) => r.borrower_id === user.id && r.status === "accepted")
-        .map((r) => {
-          const end = new Date(r.end_at);
-          return {
-            id: r.id,
-            item_title: r.item_title || "Objet",
-            other_name: namesMap[r.owner_id] || "—",
-            start_at: r.start_at,
-            end_at: r.end_at,
-            overdue: end < now,
-            remaining: timeLeftLabel(end, now),
-          };
-        })
-        .sort((a, b) => {
-          if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-          return new Date(a.end_at) - new Date(b.end_at);
-        });
-
-      setToReturn(mineToReturn);
-
-      // À remettre / à récupérer (je suis owner)
-      const mineGive = (allRes || [])
-        .filter((r) => r.owner_id === user.id && (r.status === "accepted" || r.status === "pending"))
-        .map((r) => {
-          const start = new Date(r.start_at);
-          return {
-            id: r.id,
-            item_title: r.item_title || "Objet",
-            other_name: namesMap[r.borrower_id] || "—",
-            start_at: r.start_at,
-            status: r.status,
-            when: start > now ? startsInLabel(start, now) : "en cours",
-          };
-        })
-        .sort((a, b) => {
-          if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
-          return new Date(a.start_at) - new Date(b.start_at);
-        });
-
-      setToGiveOrPickup(mineGive);
-
-      // Mes ondes (aperçu) - optionnel si table "calls" existe
-      try {
-        const { data: myCalls, error: callsErr, count: cnt } = await supabase
-          .from("calls")
-          .select("id,message,status,created_at,needed_at", { count: "exact" })
-          .eq("author_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        if (!callsErr) {
-          setCalls(myCalls || []);
-          setCallsCount(cnt || (myCalls?.length || 0));
-        }
-      } catch {}
-    };
-
     const unsub = navigation.addListener("focus", load);
     load();
     return unsub;
-  }, [navigation]);
+  }, [navigation, load]);
 
-  /* -------------------- Derived -------------------- */
-  const overdueCount = useMemo(() => (toReturn || []).filter((x) => x.overdue).length, [toReturn]);
-  const topReturn = useMemo(() => (toReturn || []).slice(0, 3), [toReturn]);
-  const topGive = useMemo(() => (toGiveOrPickup || []).slice(0, 3), [toGiveOrPickup]);
+  /* ─── Derived ─── */
+  const overdueCount = useMemo(() => toReturn.filter((x) => x.overdue).length, [toReturn]);
+  const isEmpty = circlesCount === 0 && itemsCount === 0;
+  const isNew   = circlesCount > 0 && itemsCount === 0;
 
-  /* -------------------- Render -------------------- */
+  /* ─── Render ─── */
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[styles.wrap, contentMax && { alignItems: "center" }]}
       showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
     >
       <View style={[styles.inner, contentMax && { width: contentMax }]}>
-        {/* HERO */}
-        <View style={styles.hero}>
-          <View style={styles.heroHeadRow}>
-            <Text style={styles.kicker}>Prête. Emprunte. Partage.</Text>
-            <MaterialCommunityIcons name="hand-heart" size={18} color={colors.bg} />
+
+        {/* ── ÉTAT VIDE : nouveau user ── */}
+        {!loading && isEmpty && (
+          <EmptyState
+            onOpenCircle={() => navTo("Circle")}
+          />
+        )}
+
+        {/* ── ÉTAT CHARGEMENT ── */}
+        {loading && (
+          <View style={{ alignItems: "center", paddingVertical: 48 }}>
+            <ActivityIndicator color={colors.mint} />
           </View>
+        )}
 
-          <Text style={styles.heroTitle}>Le bon plan, c’est ton cercle</Text>
+        {/* ── CONTENU NORMAL ── */}
+        {!loading && !isEmpty && (
+          <>
+            {/* Greeting + stats */}
+            <View style={styles.statsRow}>
+              <StatChip
+                icon="account-group-outline"
+                value={circlesCount}
+                label="cercle"
+                onPress={() => navTo("Circle")}
+              />
+              <StatChip
+                icon="cube-outline"
+                value={itemsCount}
+                label="objet"
+                onPress={() => navTo("Circle", { tab: "mine" })}
+              />
+              {pendingCount > 0 && (
+                <StatChip
+                  icon="clock-outline"
+                  value={pendingCount}
+                  label="en attente"
+                  highlight
+                  onPress={() => navTo("MyReservations", { filter: "pending" })}
+                />
+              )}
+            </View>
 
-          <Text style={styles.heroBody}>
-            Crée ou rejoins un cercle de confiance.{"\n"}
-            Partage ce que tu as, trouve ce qu’il te faut.{"\n"}
-            Gratuit ou payant — réserve en 1 clic.
-          </Text>
+            {/* Alerte retards — prioritaire */}
+            {overdueCount > 0 && (
+              <TouchableOpacity
+                style={styles.alertBanner}
+                activeOpacity={0.88}
+                onPress={() => navTo("MyReservations", { filter: "overdue" })}
+              >
+                <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#ff6b6b" />
+                <Text style={styles.alertTxt}>
+                  {overdueCount === 1
+                    ? "1 objet est en retard de retour"
+                    : `${overdueCount} objets sont en retard de retour`}
+                </Text>
+                <MaterialCommunityIcons name="chevron-right" size={18} color="#ff6b6b" />
+              </TouchableOpacity>
+            )}
 
-          {/* Actions principales */}
-          <View style={styles.actionsRow}>
-            <PrimaryAction icon="account-multiple-outline" label="Cercles" onPress={openCircles} />
-            <PrimaryAction icon="broadcast" label="Ondes" badge={callsCount} onPress={openOndes} />
-            <PrimaryAction icon="cube-outline" label="Mes annonces" badge={itemsCount} onPress={openMine} />
-            <PrimaryAction
-              icon="clipboard-text-clock-outline"
-              label="Réservations"
-              badge={pendingCount}
-              onPress={() => openReservations("all")}
-            />
-          </View>
-        </View>
+            {/* À rendre */}
+            {toReturn.length > 0 && (
+              <Section
+                icon="package-variant-closed"
+                title="À rendre"
+                subtitle={`${toReturn.length} emprunt${toReturn.length > 1 ? "s" : ""} en cours`}
+                open={openKey === "return"}
+                onToggle={() => toggle("return")}
+                onCta={() => navTo("MyReservations", { filter: "ongoing" })}
+                ctaLabel="Tout voir"
+              >
+                {toReturn.map((r) => (
+                  <ItemRow
+                    key={r.id}
+                    title={r.title}
+                    badge={r.overdue ? "en retard" : `reste ${r.remaining}`}
+                    danger={r.overdue}
+                  />
+                ))}
+              </Section>
+            )}
 
-        {/* À rendre */}
-        <View style={[styles.heroCard, overdueCount > 0 && styles.heroCardDanger]}>
-          <View style={styles.heroRow}>
-            <View style={styles.heroIcon}>
-              <MaterialCommunityIcons
-                name={overdueCount > 0 ? "alert-circle-outline" : "package-variant-closed"}
-                size={18}
-                color={overdueCount > 0 ? colors.danger : colors.mint}
+            {/* À remettre / récupérer */}
+            {toGive.length > 0 && (
+              <Section
+                icon="handshake-outline"
+                title="Remises à organiser"
+                subtitle={
+                  pendingCount > 0
+                    ? `${pendingCount} demande${pendingCount > 1 ? "s" : ""} en attente`
+                    : `${toGive.length} prêt${toGive.length > 1 ? "s" : ""} actif${toGive.length > 1 ? "s" : ""}`
+                }
+                open={openKey === "give"}
+                onToggle={() => toggle("give")}
+                onCta={() => navTo("MyReservations", { filter: "all" })}
+                ctaLabel="Gérer"
+              >
+                {toGive.map((r) => (
+                  <ItemRow
+                    key={r.id}
+                    title={r.title}
+                    badge={r.status === "pending" ? "en attente" : r.when}
+                    pending={r.status === "pending"}
+                  />
+                ))}
+              </Section>
+            )}
+
+            {/* Mes ondes */}
+            {calls.length > 0 && (
+              <Section
+                icon="broadcast"
+                title="Mes ondes récentes"
+                subtitle={`${calls.length} onde${calls.length > 1 ? "s" : ""}`}
+                open={openKey === "calls"}
+                onToggle={() => toggle("calls")}
+                onCta={() => navTo("Circle", { tab: "calls" })}
+                ctaLabel="Voir tout"
+              >
+                {calls.map((c) => (
+                  <ItemRow
+                    key={c.id}
+                    title={trimStr(c.message || "Onde")}
+                    badge={formatCallStatus(c.status)}
+                  />
+                ))}
+              </Section>
+            )}
+
+            {/* Si user a un cercle mais pas d'objets → nudge */}
+            {isNew && (
+              <TouchableOpacity
+                style={styles.nudge}
+                activeOpacity={0.88}
+                onPress={() => navTo("Circle", { tab: "mine" })}
+              >
+                <View style={styles.nudgeIcon}>
+                  <MaterialCommunityIcons name="cube-outline" size={20} color={colors.mint} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nudgeTitle}>Ajoute tes premiers objets</Text>
+                  <Text style={styles.nudgeSub}>
+                    Tes proches voient ce que tu as à prêter dans leur feed.
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.subtext} />
+              </TouchableOpacity>
+            )}
+
+            {/* Actions rapides — une seule rangée, pas de doublon */}
+            <View style={styles.quickRow}>
+              <QuickAction
+                icon="account-group-outline"
+                label="Cercles"
+                onPress={() => navTo("Circle")}
+              />
+              <QuickAction
+                icon="broadcast"
+                label="Ondes"
+                onPress={() => navTo("Circle", { tab: "calls" })}
+              />
+              <QuickAction
+                icon="clipboard-text-clock-outline"
+                label="Réservations"
+                badge={pendingCount}
+                onPress={() => navTo("MyReservations", { filter: "all" })}
               />
             </View>
+          </>
+        )}
 
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.heroCardTitle}>
-                {(toReturn || []).length === 0 ? "Aucun retour à prévoir" : "Retours à prévoir"}
-              </Text>
-              <Text style={styles.heroCardSub} numberOfLines={2}>
-                {(toReturn || []).length === 0
-                  ? "Tes emprunts apparaîtront ici."
-                  : overdueCount > 0
-                  ? "Un petit message au cercle peut éviter les tensions."
-                  : "Tu vois ici tes retours à venir, simplement."}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={() => openReservations(overdueCount > 0 ? "overdue" : "ongoing")}
-              activeOpacity={0.9}
-              style={styles.heroBtn}
-            >
-              <Text style={styles.heroBtnTxt}>Voir</Text>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          {(toReturn || []).length > 0 && (
-            <View style={{ marginTop: 10 }}>
-              {topReturn.map((r) => (
-                <MiniRow
-                  key={r.id}
-                  icon={r.overdue ? "clock-alert-outline" : "clock-outline"}
-                  title={r.item_title}
-                  meta={`Chez ${r.other_name}`}
-                  badge={r.overdue ? "en retard" : `reste ${r.remaining}`}
-                  danger={r.overdue}
-                />
-              ))}
-              {(toReturn || []).length > 3 && (
-                <Text style={styles.moreHint}>+{(toReturn || []).length - 3} autre(s)</Text>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Sections */}
-        <Accordion
-          title="Remises & récupérations"
-          subtitle={pendingCount > 0 ? `${pendingCount} demande(s) en attente` : "Organisation entre proches"}
-          icon="handshake-outline"
-          open={openKey === "give"}
-          onToggle={() => toggle("give")}
-        >
-          {topGive.length === 0 ? (
-            <Text style={styles.emptyTxt}>Rien à organiser pour l’instant.</Text>
-          ) : (
-            <>
-              {topGive.map((r) => (
-                <MiniRow
-                  key={r.id}
-                  icon={r.status === "pending" ? "account-clock-outline" : "calendar-check-outline"}
-                  title={r.item_title}
-                  meta={`Avec ${r.other_name}`}
-                  badge={r.status === "pending" ? "en attente" : r.when}
-                />
-              ))}
-
-              <View style={{ height: 10 }} />
-
-              <TouchableOpacity
-                style={styles.secondaryBtn}
-                activeOpacity={0.9}
-                onPress={() => openReservations(pendingCount > 0 ? "pending" : "all")}
-              >
-                <MaterialCommunityIcons name="format-list-bulleted" size={16} color={colors.text} />
-                <Text style={styles.secondaryBtnTxt}>Voir tout</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </Accordion>
-
-        <Accordion
-          title="Mes ondes"
-          subtitle={callsCount ? `${callsCount} au total` : "Demandes d’aide du cercle"}
-          icon="broadcast"
-          open={openKey === "calls"}
-          onToggle={() => toggle("calls")}
-        >
-          {!calls || calls.length === 0 ? (
-            <View style={{ gap: 10 }}>
-              <Text style={styles.emptyTxt}>Aucune onde publiée.</Text>
-              <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.9} onPress={openOndes}>
-                <MaterialCommunityIcons name="plus" size={16} color={colors.text} />
-                <Text style={styles.secondaryBtnTxt}>Créer / voir les ondes</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              {calls.map((c) => (
-                <TouchableOpacity key={c.id} style={styles.rowCard} activeOpacity={0.9} onPress={openOndes}>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <MaterialCommunityIcons name="radio-tower" size={18} color={colors.mint} />
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {"  "}
-                      {trimToOneLine(c.message || "Onde")}
-                    </Text>
-                  </View>
-                  <Text style={styles.rowMeta}>
-                    {formatCallStatus(c.status)} — {timeAgo(new Date(c.created_at))}
-                    {c.needed_at ? ` · pour ${fmtDateTime(new Date(c.needed_at))}` : ""}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-
-              <TouchableOpacity style={styles.secondaryBtn} activeOpacity={0.9} onPress={openOndes}>
-                <MaterialCommunityIcons name="arrow-right" size={16} color={colors.text} />
-                <Text style={styles.secondaryBtnTxt}>Ouvrir les ondes</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </Accordion>
-
-        <Accordion
-          title="Raccourcis"
-          subtitle="Actions rapides"
-          icon="flash-outline"
-          open={openKey === "shortcuts"}
-          onToggle={() => toggle("shortcuts")}
-        >
-          <View style={styles.shortcutsGrid}>
-            <QuickCard icon="account-multiple-outline" title="Ouvrir mes cercles" onPress={openCircles} />
-            <QuickCard icon="broadcast" title="Voir les ondes" onPress={openOndes} />
-            <QuickCard icon="cube-outline" title="Mes annonces" onPress={openMine} />
-            <QuickCard icon="clipboard-text-clock-outline" title="Mes réservations" onPress={() => openReservations("all")} />
-          </View>
-        </Accordion>
-
-        <View style={{ height: 18 }} />
+        <View style={{ height: 24 }} />
       </View>
-
-      {/* -------- MODALE fallback : Mes réservations -------- */}
-      <Modal
-        visible={reservationsModalOpen}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setReservationsModalOpen(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Mes réservations</Text>
-              <TouchableOpacity
-                onPress={() => setReservationsModalOpen(false)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MaterialCommunityIcons name="close" size={20} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSub}>
-              Impossible d’ouvrir l’écran “MyReservations” via la navigation (route non trouvée).
-            </Text>
-
-            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-              {(reservationsAll || []).length === 0 ? (
-                <Text style={styles.emptyTxt}>Aucune réservation.</Text>
-              ) : (
-                reservationsAll.slice(0, 30).map((r) => (
-                  <View key={r.id} style={[styles.rowCard, { marginBottom: 10 }]}>
-                    <Text style={[styles.rowTitle, { marginBottom: 4 }]} numberOfLines={1}>
-                      {r.item_title || "Objet"}
-                    </Text>
-                    <Text style={styles.rowMeta}>
-                      Statut : <Text style={styles.bold}>{formatResStatus(r.status)}</Text>
-                    </Text>
-                    <Text style={styles.rowMeta}>
-                      {r.start_at ? `Début : ${fmtDateTime(new Date(r.start_at))}` : "—"}{" "}
-                      {r.end_at ? ` · Fin : ${fmtDateTime(new Date(r.end_at))}` : ""}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.secondaryBtn, { marginTop: 10 }]}
-              activeOpacity={0.9}
-              onPress={() => {
-                setReservationsModalOpen(false);
-                Alert.alert(
-                  "À vérifier",
-                  "Ton App.js a bien une route Stack 'MyReservations'. Si tu vois encore cette modale, c’est que le Dashboard n’est pas dans le même arbre de navigation (ou que la route a un nom différent)."
-                );
-              }}
-            >
-              <MaterialCommunityIcons name="information-outline" size={16} color={colors.text} />
-              <Text style={styles.secondaryBtnTxt}>Pourquoi je vois cette modale ?</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
   );
 }
 
-/* -------------------- UI components -------------------- */
-
-function PrimaryAction({ icon, label, onPress, badge }) {
+/* ─── EMPTY STATE ─── */
+function EmptyState({ onOpenCircle }) {
   return (
-    <TouchableOpacity style={styles.primaryAction} onPress={onPress} activeOpacity={0.9}>
-      <View style={styles.primaryActionIcon}>
-        <MaterialCommunityIcons name={icon} size={18} color={colors.mint} />
+    <View style={styles.emptyWrap}>
+      <View style={styles.emptyIcon}>
+        <MaterialCommunityIcons name="account-group-outline" size={36} color={colors.mint} />
       </View>
-      <Text style={styles.primaryActionTxt} numberOfLines={1}>
-        {label}
+      <Text style={styles.emptyTitle}>Crée ton premier cercle</Text>
+      <Text style={styles.emptySub}>
+        {"Partage tes objets avec tes proches.\nEmprunte ce dont tu as besoin, sans acheter."}
       </Text>
-      {!!badge && badge > 0 && (
-        <View style={styles.primaryBadge}>
-          <Text style={styles.primaryBadgeTxt}>{badge > 99 ? "99+" : String(badge)}</Text>
-        </View>
-      )}
+      <TouchableOpacity style={styles.emptyBtn} onPress={onOpenCircle} activeOpacity={0.88}>
+        <MaterialCommunityIcons name="plus" size={18} color={colors.bg} />
+        <Text style={styles.emptyBtnTxt}>Créer un cercle</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+/* ─── STAT CHIP ─── */
+function StatChip({ icon, value, label, onPress, highlight }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.88}
+      style={[styles.statChip, highlight && styles.statChipHL]}
+    >
+      <MaterialCommunityIcons
+        name={icon}
+        size={15}
+        color={highlight ? colors.bg : colors.mint}
+      />
+      <Text style={[styles.statVal, highlight && { color: colors.bg }]}>{value}</Text>
+      <Text style={[styles.statLabel, highlight && { color: colors.bg }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function Accordion({ title, subtitle, icon, open, onToggle, children }) {
+/* ─── SECTION / ACCORDÉON ─── */
+function Section({ icon, title, subtitle, open, onToggle, onCta, ctaLabel, children }) {
   return (
-    <View style={styles.accWrap}>
-      <TouchableOpacity style={styles.accHead} activeOpacity={0.9} onPress={onToggle}>
-        <View style={styles.accIcon}>
-          <MaterialCommunityIcons name={icon} size={18} color={colors.mint} />
+    <View style={styles.section}>
+      <TouchableOpacity style={styles.sectionHead} onPress={onToggle} activeOpacity={0.88}>
+        <View style={styles.sectionIcon}>
+          <MaterialCommunityIcons name={icon} size={16} color={colors.mint} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.accTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          {!!subtitle && (
-            <Text style={styles.accSub} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          )}
+          <Text style={styles.sectionTitle} numberOfLines={1}>{title}</Text>
+          {!!subtitle && <Text style={styles.sectionSub} numberOfLines={1}>{subtitle}</Text>}
         </View>
-        <MaterialCommunityIcons name={open ? "chevron-up" : "chevron-down"} size={22} color={colors.subtext} />
+        <MaterialCommunityIcons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={20}
+          color={colors.subtext}
+        />
       </TouchableOpacity>
 
-      {open ? <View style={styles.accBody}>{children}</View> : null}
-    </View>
-  );
-}
-
-function MiniRow({ icon, title, meta, badge, danger }) {
-  return (
-    <View style={styles.miniRow}>
-      <MaterialCommunityIcons name={icon} size={18} color={danger ? colors.danger : colors.mint} />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.miniTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.miniMeta} numberOfLines={1}>
-          {meta}
-        </Text>
-      </View>
-      {!!badge && (
-        <View style={[styles.pill, danger && styles.pillDanger]}>
-          <Text style={[styles.pillTxt, danger && styles.pillTxtDanger]}>{badge}</Text>
+      {open && (
+        <View style={styles.sectionBody}>
+          {children}
+          {!!onCta && (
+            <TouchableOpacity style={styles.ctaBtn} onPress={onCta} activeOpacity={0.88}>
+              <Text style={styles.ctaTxt}>{ctaLabel}</Text>
+              <MaterialCommunityIcons name="arrow-right" size={15} color={colors.mint} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
   );
 }
 
-function QuickCard({ icon, title, onPress }) {
+/* ─── ITEM ROW ─── */
+function ItemRow({ title, badge, danger, pending }) {
   return (
-    <TouchableOpacity style={styles.quickCard} activeOpacity={0.9} onPress={onPress}>
-      <MaterialCommunityIcons name={icon} size={18} color={colors.mint} />
-      <Text style={styles.quickTxt} numberOfLines={2}>
-        {title}
-      </Text>
+    <View style={styles.itemRow}>
+      <Text style={styles.itemTitle} numberOfLines={1}>{title}</Text>
+      {!!badge && (
+        <View style={[
+          styles.itemBadge,
+          danger   && styles.itemBadgeDanger,
+          pending  && styles.itemBadgePending,
+        ]}>
+          <Text style={[
+            styles.itemBadgeTxt,
+            danger  && { color: "#ffb3b3" },
+            pending && { color: "#ffe29a" },
+          ]}>
+            {badge}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/* ─── QUICK ACTION ─── */
+function QuickAction({ icon, label, onPress, badge }) {
+  return (
+    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.88}>
+      <View style={styles.quickIcon}>
+        <MaterialCommunityIcons name={icon} size={18} color={colors.mint} />
+        {!!badge && badge > 0 && (
+          <View style={styles.quickBadge}>
+            <Text style={styles.quickBadgeTxt}>{badge > 99 ? "99+" : badge}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={styles.quickLabel} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-/* -------------------- Utils -------------------- */
-
-function fmtDateTime(d) {
-  return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
+/* ─── UTILS ─── */
 function timeLeftLabel(end, now = new Date()) {
   const ms = Math.max(0, end - now);
   const mins = Math.round(ms / 60000);
@@ -593,8 +465,7 @@ function timeLeftLabel(end, now = new Date()) {
   if (mins < 60) return `${mins} min`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return `${hours} h`;
-  const days = Math.round(hours / 24);
-  return `${days} j`;
+  return `${Math.round(hours / 24)} j`;
 }
 
 function startsInLabel(start, now = new Date()) {
@@ -604,248 +475,134 @@ function startsInLabel(start, now = new Date()) {
   if (mins < 60) return `dans ${mins} min`;
   const hours = Math.round(mins / 60);
   if (hours < 24) return `dans ${hours} h`;
-  const days = Math.round(hours / 24);
-  return `dans ${days} j`;
+  return `dans ${Math.round(hours / 24)} j`;
 }
 
-function timeAgo(date) {
-  const ms = Date.now() - date.getTime();
-  if (ms < 60e3) return "à l’instant";
-  const mins = Math.floor(ms / 60e3);
-  if (mins < 60) return `il y a ${mins} min`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `il y a ${hours} h`;
-  const days = Math.floor(hours / 24);
-  return `il y a ${days} j`;
-}
-
-function trimToOneLine(s = "") {
+function trimStr(s = "", max = 60) {
   const t = String(s).replace(/\s+/g, " ").trim();
-  return t.length > 80 ? `${t.slice(0, 77)}…` : t;
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 function formatCallStatus(s) {
-  if (!s) return "envoyée";
-  const map = { pending: "envoyée", open: "ouverte", matched: "match", closed: "fermée", canceled: "annulée" };
-  return map[s] || s;
-}
-
-function formatResStatus(s) {
-  const map = {
-    pending: "en attente",
-    accepted: "acceptée",
-    rejected: "refusée",
-    refused: "refusée",
-    canceled: "annulée",
-    done: "terminée",
-    returned: "rendu",
-  };
+  const map = { pending: "envoyée", open: "ouverte", matched: "match ✓", closed: "fermée", canceled: "annulée" };
   return map[s] || s || "—";
 }
 
-/* -------------------- Styles -------------------- */
-
+/* ─── STYLES ─── */
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  wrap: { padding: 16, paddingBottom: 16 },
-  inner: { width: "100%" },
+  wrap:   { padding: 16, paddingTop: 20, paddingBottom: 16 },
+  inner:  { width: "100%" },
 
-  hero: {
-    backgroundColor: "#0f1627",
-    borderWidth: 1,
-    borderColor: "#21314d",
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 14,
-    overflow: "hidden",
+  /* Empty */
+  emptyWrap: {
+    alignItems: "center", paddingVertical: 48, paddingHorizontal: 24, gap: 12,
   },
-  heroHeadRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  kicker: {
-    color: colors.bg,
-    backgroundColor: colors.mint,
-    fontWeight: "900",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    overflow: "hidden",
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 22,
+    backgroundColor: "rgba(29,255,194,0.08)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.20)",
+    alignItems: "center", justifyContent: "center", marginBottom: 4,
   },
-  heroTitle: { color: colors.text, fontWeight: "900", fontSize: 20, marginTop: 6 },
-  heroBody: { color: colors.subtext, lineHeight: 20, marginTop: 6 },
+  emptyTitle: { color: colors.text, fontSize: 20, fontWeight: "900", textAlign: "center" },
+  emptySub:   { color: colors.subtext, fontSize: 14, lineHeight: 20, textAlign: "center" },
+  emptyBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: colors.mint, borderRadius: 14,
+    paddingHorizontal: 20, paddingVertical: 14, marginTop: 8,
+  },
+  emptyBtnTxt: { color: colors.bg, fontWeight: "900", fontSize: 15 },
 
-  actionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
-  primaryAction: {
-    width: "48%",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#1f2a42",
-    backgroundColor: "#10192b",
-    padding: 12,
-    overflow: "hidden",
+  /* Stats */
+  statsRow: { flexDirection: "row", gap: 8, marginBottom: 14, flexWrap: "wrap" },
+  statChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(29,255,194,0.07)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.20)",
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7,
   },
-  primaryActionIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: "rgba(29,255,194,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(29,255,194,0.20)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  primaryActionTxt: { color: colors.text, fontWeight: "900" },
-  primaryBadge: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: colors.mint,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  primaryBadgeTxt: { color: colors.bg, fontWeight: "900", fontSize: 11 },
+  statChipHL: { backgroundColor: colors.mint, borderColor: colors.mint },
+  statVal:   { color: colors.mint, fontWeight: "900", fontSize: 14 },
+  statLabel: { color: colors.subtext, fontWeight: "700", fontSize: 13 },
 
-  heroCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    padding: 12,
-    marginBottom: 10,
+  /* Alert */
+  alertBanner: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(255,107,107,0.08)",
+    borderWidth: 1, borderColor: "rgba(255,107,107,0.30)",
+    borderRadius: 14, padding: 14, marginBottom: 12,
   },
-  heroCardDanger: {
-    borderColor: "rgba(255,107,107,0.35)",
-    backgroundColor: "rgba(255,107,107,0.06)",
-  },
-  heroRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  heroIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.20)",
-    borderWidth: 1,
-    borderColor: colors.stroke,
-  },
-  heroCardTitle: { color: colors.text, fontWeight: "900" },
-  heroCardSub: { color: colors.subtext, marginTop: 2, fontWeight: "700" },
-  heroBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  heroBtnTxt: { color: colors.text, fontWeight: "900" },
+  alertTxt: { color: "#ff9a9a", fontWeight: "800", flex: 1 },
 
-  miniRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "rgba(0,0,0,0.18)",
-    marginBottom: 8,
-  },
-  miniTitle: { color: colors.text, fontWeight: "900" },
-  miniMeta: { color: colors.subtext, marginTop: 2, fontWeight: "700" },
-
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "rgba(255,255,255,0.04)",
-  },
-  pillTxt: { color: colors.text, fontWeight: "900", fontSize: 12 },
-  pillDanger: { borderColor: "rgba(255,107,107,0.35)", backgroundColor: "rgba(255,107,107,0.10)" },
-  pillTxtDanger: { color: "#ffb3b3" },
-  moreHint: { color: colors.subtext, fontWeight: "800", marginTop: 2, textAlign: "right" },
-
-  accWrap: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    marginTop: 10,
-    overflow: "hidden",
-  },
-  accHead: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12 },
-  accIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: "rgba(29,255,194,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(29,255,194,0.20)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  accTitle: { color: colors.text, fontWeight: "900" },
-  accSub: { color: colors.subtext, marginTop: 2, fontWeight: "700" },
-  accBody: { paddingHorizontal: 12, paddingBottom: 12 },
-
-  emptyTxt: { color: colors.subtext, fontWeight: "700", paddingVertical: 6 },
-
-  rowCard: {
+  /* Section */
+  section: {
+    borderWidth: 1, borderColor: colors.stroke,
     backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.stroke,
+    borderRadius: 16, marginBottom: 10, overflow: "hidden",
   },
-  rowTitle: { color: colors.text, fontWeight: "800", flex: 1 },
-  rowMeta: { color: colors.subtext, marginTop: 2 },
-  bold: { color: colors.text, fontWeight: "900" },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14 },
+  sectionIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: "rgba(29,255,194,0.10)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.20)",
+    alignItems: "center", justifyContent: "center",
+  },
+  sectionTitle: { color: colors.text, fontWeight: "900", fontSize: 14 },
+  sectionSub:   { color: colors.subtext, fontWeight: "700", fontSize: 12, marginTop: 1 },
+  sectionBody:  { paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
 
-  secondaryBtn: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    alignItems: "center",
-    width: "100%",
-    flexDirection: "row",
-    gap: 8,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.stroke,
+  ctaBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    marginTop: 6, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: colors.stroke,
   },
-  secondaryBtnTxt: { color: colors.text, fontWeight: "900" },
+  ctaTxt: { color: colors.mint, fontWeight: "800", fontSize: 13 },
 
-  shortcutsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  quickCard: {
-    width: "48%",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    borderRadius: 14,
-    padding: 12,
-    gap: 8,
+  /* Item row */
+  itemRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 9, paddingHorizontal: 12,
+    backgroundColor: "rgba(0,0,0,0.18)",
+    borderRadius: 10, borderWidth: 1, borderColor: colors.stroke,
   },
-  quickTxt: { color: colors.text, fontWeight: "900" },
+  itemTitle:    { color: colors.text, fontWeight: "700", fontSize: 13, flex: 1, marginRight: 8 },
+  itemBadge:    { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.07)", borderWidth: 1, borderColor: colors.stroke },
+  itemBadgeTxt: { color: colors.subtext, fontWeight: "800", fontSize: 11 },
+  itemBadgeDanger:  { backgroundColor: "rgba(255,107,107,0.12)", borderColor: "rgba(255,107,107,0.30)" },
+  itemBadgePending: { backgroundColor: "rgba(255,226,154,0.10)", borderColor: "rgba(255,226,154,0.25)" },
 
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: 16 },
-  modalCard: {
-    width: "100%",
-    maxWidth: 520,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: colors.bg,
-    padding: 14,
+  /* Nudge */
+  nudge: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.22)",
+    backgroundColor: "rgba(29,255,194,0.05)",
+    borderRadius: 16, padding: 14, marginBottom: 14,
   },
-  modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  modalTitle: { color: colors.text, fontWeight: "900", fontSize: 16 },
-  modalSub: { color: colors.subtext, marginBottom: 10, fontWeight: "700" },
+  nudgeIcon: {
+    width: 40, height: 40, borderRadius: 13,
+    backgroundColor: "rgba(29,255,194,0.10)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.22)",
+    alignItems: "center", justifyContent: "center",
+  },
+  nudgeTitle: { color: colors.text, fontWeight: "900", marginBottom: 2 },
+  nudgeSub:   { color: colors.subtext, fontSize: 13, lineHeight: 18 },
+
+  /* Quick actions */
+  quickRow: {
+    flexDirection: "row", gap: 10, marginTop: 14,
+  },
+  quickAction: {
+    flex: 1, alignItems: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.stroke,
+    borderRadius: 14, padding: 14, gap: 8,
+  },
+  quickIcon: { position: "relative" },
+  quickLabel: { color: colors.text, fontWeight: "800", fontSize: 12, textAlign: "center" },
+  quickBadge: {
+    position: "absolute", top: -5, right: -10,
+    backgroundColor: colors.mint, borderRadius: 999,
+    paddingHorizontal: 5, paddingVertical: 2, minWidth: 18, alignItems: "center",
+  },
+  quickBadgeTxt: { color: colors.bg, fontWeight: "900", fontSize: 10 },
 });

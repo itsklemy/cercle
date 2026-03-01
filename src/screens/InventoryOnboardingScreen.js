@@ -1,146 +1,190 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View, Text, TouchableOpacity, TextInput, ActivityIndicator,
+  Alert, StyleSheet, KeyboardAvoidingView, Platform,
+  ScrollView, Share, Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 
-const OFFICIAL_GREEN = "#1DFFC2";
+/* ─── TOKENS ─── */
+const MINT    = "#1DFFC2";
+const BG      = "#07090F";
+const TEXT    = "#F0F2F7";
+const SUBTEXT = "#5A6478";
+const STROKE  = "rgba(255,255,255,0.08)";
+const LEMON   = "#FFE66D";
+const SKY     = "#85CCFF";
+const GREEN   = "#6EE7B7";
 
-const colors = {
-  bg: "#0B0E14",
-  card: "rgba(255,255,255,0.05)",
-  card2: "rgba(255,255,255,0.08)",
-  text: "#F3F4F6",
-  subtext: "#9AA3B2",
-  stroke: "rgba(255,255,255,0.10)",
-  brand: OFFICIAL_GREEN,
-};
+/* ─── CONSTANTS ─── */
+const ONBOARDING_KEY_PREFIX = "onboarding_done_v1_";
+const PENDING_INVITE_KEY    = "pending_invite_v1";
+const ITEMS_TABLE           = "items";
+const onboardingKey         = (uid) => `${ONBOARDING_KEY_PREFIX}${String(uid || "")}`;
 
-// ✅ clé onboarding PAR UTILISATEUR (sinon ça bug quand tu changes de compte)
-const ONBOARDING_DONE_KEY_PREFIX = "onboarding_done_v1_";
-const onboardingKeyForUser = (userId) => `${ONBOARDING_DONE_KEY_PREFIX}${String(userId || "")}`;
+/* ─────────────────────────────────────────────
+   3 CATÉGORIES PRIORITAIRES
+   Objets chers, encombrants, utilisés 1x/an
+   La vraie raison de télécharger l'app.
+   Clés = exactement celles de CircleScreen/CATEGORIES
+─────────────────────────────────────────────── */
+const PRIORITY_CATS = [
+  {
+    key: "bricolage", label: "Bricolage & Travaux",
+    icon: "hammer-screwdriver", color: SKY,
+    items: [
+      "Perceuse", "Visseuse", "Perforateur SDS", "Marteau piqueur",
+      "Scie circulaire", "Scie sauteuse", "Ponceuse orbitale",
+      "Niveau laser", "Compresseur", "Pistolet peinture",
+      "Echelle coulissante", "Echafaudage", "Tresteaux",
+      "Diable", "Sangles arrimage",
+    ],
+  },
+  {
+    key: "sport", label: "Outdoor & Camping",
+    icon: "hiking", color: MINT,
+    items: [
+      "Tente 2 places", "Tente familiale", "Sac de couchage",
+      "Matelas gonflable", "Rechaud camping", "Table pliante",
+      "Chaises pliantes", "Hamac", "Parasol", "Glaciere",
+      "Sac a dos rando", "Batons de marche",
+      "Kayak", "Planche de paddle", "Velo pliant",
+    ],
+  },
+  {
+    key: "maison", label: "Maison & Quotidien",
+    icon: "home-variant-outline", color: LEMON,
+    items: [
+      "Escabeau", "Aspirateur", "Robot aspirateur", "Nettoyeur vapeur",
+      "Shampouineuse", "Table a repasser", "Rallonge electrique",
+      "Ventilateur", "Chauffage appoint", "Climatiseur mobile",
+      "Deshumidificateur", "Machine a coudre", "Pistolet colle",
+    ],
+  },
+];
 
-// ✅ table feed
-const ITEMS_TABLE = "items";
-
-// ✅ presets EXACTS (repris de ton InventoryUpdate)
-const PRESETS = {
-  maison: [
-    "Escabeau",
-    "Aspirateur",
-    "Nettoyeur vapeur",
-    "Shampouineuse",
-    "Nettoyeur de vitres",
-    "Table a repasser",
-    "Defroisseur vapeur",
-    "Rallonge electrique",
-    "Ventilateur",
-    "Chauffage d appoint",
-    "Radiateur bain d huile",
-    "Climatiseur mobile",
-    "Deshumidificateur",
-    "Humidificateur",
-    "Machine a coudre",
-    "Pistolet a colle",
-  ],
-  travaux: [
-    "Betonniere",
-    "Marteau piqueur",
-    "Burineur",
-    "Perforateur SDS",
-    "Scie circulaire",
-    "Ponceuse",
-    "Niveau laser",
-    "Compresseur",
-    "Poste a souder",
-    "Echafaudage",
-    "Echelle coulissante",
-    "Tretaux",
-    "Table de chantier",
-    "Diable",
-    "Chariot de manutention",
-    "Sangles d arrimage",
-  ],
-  outdoor: [
-    "Tente",
-    "Sac de couchage",
-    "Matelas gonflable",
-    "Lampe camping",
-    "Lampe frontale",
-    "Rechaud",
-    "Table pliante",
-    "Chaise pliante",
-    "Hamac",
-    "Sac a dos rando",
-    "Batons de marche",
-    "Jerrican d eau",
-    "Masque et tuba",
-    "Parasol",
-    "Lampe torche",
-    "Batterie externe",
-  ],
-};
-
+/* ─── HELPERS ─── */
 const titlePretty = (s) => {
   const t = String(s || "").trim();
-  if (!t) return "";
-  return t.charAt(0).toUpperCase() + t.slice(1);
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
 };
 
-async function getUserOrAlert() {
+async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
-  const user = data?.user;
-  if (error || !user) {
-    Alert.alert("Auth", "Connecte-toi d’abord.");
-    return null;
-  }
-  return user;
+  if (error || !data?.user) { Alert.alert("Auth", "Connecte-toi d'abord."); return null; }
+  return data.user;
 }
 
-export default function InventoryOnboardingScreen({ navigation }) {
-  // step 0: choix, 1: nom, 2: sélection items
-  const [step, setStep] = useState(0);
-  const [checking, setChecking] = useState(true);
+function makeReadableCode(circleName) {
+  const prefix = String(circleName || "CERCLE")
+    .toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 7) || "CERCLE";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const suffix = Array.from({ length: 4 }, () =>
+    chars[Math.floor(Math.random() * chars.length)]
+  ).join("");
+  return `${prefix}-${suffix}`;
+}
 
-  const [choice, setChoice] = useState(null); // "create" | "later"
+async function getOrCreateInviteCode(circleId, circleName) {
+  try {
+    const { data } = await supabase.from("circle_invites").select("code")
+      .eq("circle_id", circleId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (data?.code) return String(data.code);
+    const user = await getCurrentUser();
+    const code = makeReadableCode(circleName);
+    if (!user) return code;
+    const { data: ins, error } = await supabase.from("circle_invites")
+      .insert({ circle_id: circleId, code, invited_by: user.id }).select("code").single();
+    return error ? code : String(ins.code);
+  } catch { return makeReadableCode(circleName); }
+}
+
+const buildInviteMessage = (circleName, code, itemTitles = []) => {
+  const top = itemTitles.slice(0, 3);
+  const objectLine = top.length > 0
+    ? "\nJe mets a dispo : " + top.join(", ") + "\n"
+    : "";
+  return [
+    "Je t'invite dans mon cercle \"" + circleName + "\" sur Cercle !",
+    objectLine,
+    "1. Telecharge l'app Cercle",
+    "2. Appuie sur \"J'ai un code d'invitation\"",
+    "3. Entre ce code : " + code,
+    "",
+    "C'est tout !",
+  ].join("\n");
+};
+
+/* ─── CHIP ANIMÉ ─── */
+function Chip({ label, selected, onPress, color }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const tap = () => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.91, duration: 60, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, tension: 230, friction: 8, useNativeDriver: true }),
+    ]).start();
+    onPress();
+  };
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity onPress={tap} activeOpacity={0.85}
+        style={[SS.chip, selected && { backgroundColor: color + "18", borderColor: color + "50" }]}>
+        {selected && <MaterialCommunityIcons name="check" size={11} color={color} />}
+        <Text style={[SS.chipTxt, selected && { color: TEXT, fontWeight: "900" }]}>{label}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+/* ─── SCREEN ─── */
+export default function InventoryOnboardingScreen({ navigation, route }) {
+  const [step,       setStep]      = useState(1);
+  const [checking,   setChecking]  = useState(true);
   const [circleName, setCircleName] = useState("Mon cercle");
+  const [saving,     setSaving]    = useState(false);
+  const [sharing,    setSharing]   = useState(false);
 
-  const [selMaison, setSelMaison] = useState([]);
-  const [selTravaux, setSelTravaux] = useState([]);
-  const [selOutdoor, setSelOutdoor] = useState([]);
+  const [selections, setSelections] = useState(
+    Object.fromEntries(PRIORITY_CATS.map((c) => [c.key, []]))
+  );
+  const [customItems,  setCustomItems]  = useState(
+    Object.fromEntries(PRIORITY_CATS.map((c) => [c.key, []]))
+  );
+  const [customDrafts, setCustomDrafts] = useState(
+    Object.fromEntries(PRIORITY_CATS.map((c) => [c.key, ""]))
+  );
 
-  const [saving, setSaving] = useState(false);
+  const [createdId,  setCreatedId]  = useState(null);
+  const [inviteCode, setInviteCode] = useState(null);
 
-  // ✅ si onboarding déjà fait (pour CE USER) => Circle direct
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(28)).current;
+
+  const animateIn = useCallback(() => {
+    fadeAnim.setValue(0); slideAnim.setValue(28);
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 340, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 11, useNativeDriver: true }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  useEffect(() => { animateIn(); }, [step, animateIn]);
+
   useEffect(() => {
     (async () => {
       try {
-        const user = await getUserOrAlert();
-        if (!user) {
-          setChecking(false);
-          return;
-        }
-
-        const done = await AsyncStorage.getItem(onboardingKeyForUser(user.id));
-        const hasDone = done === "1" || done === "true";
-
-        if (hasDone) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "AppTabs", params: { screen: "Circle" } }],
-          });
+        const user = await getCurrentUser();
+        if (!user) { setChecking(false); return; }
+        const done = await AsyncStorage.getItem(onboardingKey(user.id));
+        if (done === "1" || done === "true") {
+          navigation.reset({ index: 0, routes: [{ name: "AppTabs" }] });
           return;
         }
       } catch {}
@@ -148,436 +192,444 @@ export default function InventoryOnboardingScreen({ navigation }) {
     })();
   }, [navigation]);
 
-  const toggle = useCallback((setArr, label) => {
-    setArr((prev) => {
-      const has = prev.includes(label);
-      if (has) return prev.filter((x) => x !== label);
-      return [...prev, label];
+  const toggle = useCallback((catKey, label) => {
+    setSelections((prev) => {
+      const curr = prev[catKey] || [];
+      return {
+        ...prev,
+        [catKey]: curr.includes(label) ? curr.filter((x) => x !== label) : [...curr, label],
+      };
     });
   }, []);
 
-  const totalSelected = selMaison.length + selTravaux.length + selOutdoor.length;
+  const addCustom = useCallback((catKey) => {
+    const draft = titlePretty(customDrafts[catKey] || "");
+    if (!draft) return;
+    setCustomItems((prev) => {
+      const curr = prev[catKey] || [];
+      return curr.includes(draft) ? prev : { ...prev, [catKey]: [...curr, draft] };
+    });
+    setSelections((prev) => {
+      const curr = prev[catKey] || [];
+      return curr.includes(draft) ? prev : { ...prev, [catKey]: [...curr, draft] };
+    });
+    setCustomDrafts((prev) => ({ ...prev, [catKey]: "" }));
+  }, [customDrafts]);
 
-  // ✅ UNIQUE sortie vers Circle : on marque onboarding done ICI (Passer & Valider passent forcément par là)
-  const goToCircle = useCallback(
-    async ({ circleId, justCreated }) => {
-      try {
-        const user = await getUserOrAlert();
-        if (user?.id) {
-          await AsyncStorage.setItem(onboardingKeyForUser(user.id), "1");
-        }
-      } catch {}
-
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: "AppTabs",
-            params: {
-              screen: "Circle",
-              params: {
-                circleId: circleId || null,
-                justCreated: !!justCreated,
-                refreshKey: Date.now(),
-                lotfi: justCreated
-                  ? "Félicitations, tu peux maintenant ajouter des membres dans ton cercle."
-                  : null,
-              },
-            },
-          },
-        ],
-      });
-    },
-    [navigation]
-  );
-
-  const onPass = useCallback(() => {
-    goToCircle({ circleId: null, justCreated: false });
-  }, [goToCircle]);
-
-  const createCircleWithName = useCallback(async (name) => {
-    const user = await getUserOrAlert();
-    if (!user) return { circleId: null, userId: null };
-
-    const clean = String(name || "").trim();
-    if (!clean) {
-      Alert.alert("Cercle", "Donne un nom à ton cercle.");
-      return { circleId: null, userId: user.id };
-    }
-
-    try {
-      // 1) RPC si dispo
-      const { data: rpcData, error: rpcErr } = await supabase.rpc("create_circle", { p_name: clean });
-      const newId = typeof rpcData === "string" ? rpcData : rpcData?.id;
-      if (!rpcErr && newId) return { circleId: String(newId), userId: user.id };
-
-      // 2) fallback insert
-      const { data: inserted, error: insErr } = await supabase
-        .from("circles")
-        .insert({ name: clean, owner_id: user.id })
-        .select("id")
-        .single();
-
-      if (insErr) throw insErr;
-      return { circleId: String(inserted?.id || ""), userId: user.id };
-    } catch (e) {
-      Alert.alert("Cercle", e?.message || "Création impossible.");
-      return { circleId: null, userId: user.id };
-    }
+  const removeCustom = useCallback((catKey, label) => {
+    setCustomItems((prev) => ({ ...prev, [catKey]: (prev[catKey] || []).filter((x) => x !== label) }));
+    setSelections((prev)  => ({ ...prev, [catKey]: (prev[catKey] || []).filter((x) => x !== label) }));
   }, []);
 
-  const insertSeedItems = useCallback(
-  async ({ circleId, userId }) => {
-    const rows = [
-      ...selMaison.map((t) => ({
-        owner_id: userId,
-        circle_id: circleId,
-        title: titlePretty(t),
-        description: "",
-        category: "maison",
-        photo: null,
-        is_free: true,
-        price_amount: 0,
-        price_note: null,
-      })),
-      ...selTravaux.map((t) => ({
-        owner_id: userId,
-        circle_id: circleId,
-        title: titlePretty(t),
-        description: "",
-        category: "travaux",
-        photo: null,
-        is_free: true,
-        price_amount: 0,
-        price_note: null,
-      })),
-      ...selOutdoor.map((t) => ({
-        owner_id: userId,
-        circle_id: circleId,
-        title: titlePretty(t),
-        description: "",
-        category: "outdoor",
-        photo: null,
-        is_free: true,
-        price_amount: 0,
-        price_note: null,
-      })),
-    ];
+  const totalSelected = useMemo(
+    () => Object.values(selections).reduce((s, a) => s + a.length, 0),
+    [selections]
+  );
 
+  const selectedTitles = useMemo(
+    () => Object.values(selections).flat().filter(Boolean),
+    [selections]
+  );
+
+  const createCircle = useCallback(async (name) => {
+    const user = await getCurrentUser();
+    if (!user) return null;
+    const clean = String(name || "").trim();
+    if (!clean) { Alert.alert("Cercle", "Donne un nom a ton cercle."); return null; }
+    try {
+      const { data: rpc, error: rpcErr } = await supabase.rpc("create_circle", { p_name: clean });
+      const rpcId = typeof rpc === "string" ? rpc : rpc?.id;
+      if (!rpcErr && rpcId) return String(rpcId);
+      const { data: ins, error: insErr } = await supabase
+        .from("circles").insert({ name: clean, owner_id: user.id }).select("id").single();
+      if (insErr) throw insErr;
+      return String(ins?.id || "");
+    } catch (e) { Alert.alert("Cercle", e?.message || "Creation impossible."); return null; }
+  }, []);
+
+  const insertItems = useCallback(async ({ circleId, userId }) => {
+    const rows = [];
+    for (const cat of PRIORITY_CATS) {
+      for (const label of (selections[cat.key] || [])) {
+        rows.push({
+          owner_id: userId, circle_id: circleId,
+          title: titlePretty(label), description: "",
+          category: cat.key, photo: null, is_free: true,
+        });
+      }
+    }
     if (rows.length < 3) {
-      Alert.alert("Inventaire", "Choisis au moins 3 objets, toutes catégories confondues.");
+      Alert.alert("Objets", "Selectionne au moins 3 objets.");
       return false;
     }
-
-    // 1) tentative “nouveau schéma”
     let { error } = await supabase.from(ITEMS_TABLE).insert(rows);
-
-    // ✅ détecte aussi l’erreur “schema cache”
-    const msg = String(error?.message || "").toLowerCase();
-    const looksLikeMissingColumn =
-      msg.includes("schema cache") ||
-      msg.includes("could not find") ||
-      msg.includes("does not exist") ||
-      msg.includes("unknown") ||
-      msg.includes("column");
-
-    // 2) fallback “ancien schéma” (sans is_free / price_*)
-    if (error && looksLikeMissingColumn) {
-      const legacy = rows.map((r) => ({
-        owner_id: r.owner_id,
-        circle_id: r.circle_id,
-        title: r.title,
-        description: r.description,
-        category: r.category,
-        photo: null,
-      }));
-
-      const r2 = await supabase.from(ITEMS_TABLE).insert(legacy);
-      error = r2.error;
+    if (error && /schema|column|unknown|does not exist/i.test(error?.message || "")) {
+      const legacy = rows.map(({ owner_id, circle_id, title, description, category }) =>
+        ({ owner_id, circle_id, title, description, category, photo: null })
+      );
+      ({ error } = await supabase.from(ITEMS_TABLE).insert(legacy));
     }
-
-    if (error) {
-      Alert.alert("Inventaire", error.message || "Impossible d’ajouter les objets.");
-      return false;
-    }
-
+    if (error) { Alert.alert("Objets", error.message || "Ajout impossible."); return false; }
     return true;
-  },
-  [selMaison, selTravaux, selOutdoor]
-);
+  }, [selections]);
 
+  const consumePendingInvite = useCallback(async () => {
+    try {
+      const raw = route?.params?.pendingCode
+        || (await AsyncStorage.getItem(PENDING_INVITE_KEY)) || "";
+      if (!raw.trim()) return;
+      await supabase.rpc("join_circle_by_token_or_code_v2", { p_code: raw.trim() });
+      await AsyncStorage.removeItem(PENDING_INVITE_KEY);
+    } catch {}
+  }, [route?.params?.pendingCode]);
 
   const onValidate = useCallback(async () => {
-    if (saving) return;
+    if (saving || totalSelected < 3) return;
     setSaving(true);
     try {
-      const { circleId, userId } = await createCircleWithName(circleName);
-      if (!circleId || !userId) return;
-
-      const ok = await insertSeedItems({ circleId, userId });
+      const user = await getCurrentUser();
+      if (!user) return;
+      const circleId = await createCircle(circleName);
+      if (!circleId) return;
+      const ok = await insertItems({ circleId, userId: user.id });
       if (!ok) return;
+      await consumePendingInvite();
+      const code = await getOrCreateInviteCode(circleId, circleName);
+      setCreatedId(circleId);
+      setInviteCode(code);
+      setStep(2);
+    } finally { setSaving(false); }
+  }, [saving, totalSelected, circleName, createCircle, insertItems, consumePendingInvite]);
 
-      await goToCircle({ circleId, justCreated: true });
-    } finally {
-      setSaving(false);
-    }
-  }, [saving, circleName, createCircleWithName, insertSeedItems, goToCircle]);
+  const shareInvitation = useCallback(async () => {
+    if (!inviteCode) return;
+    setSharing(true);
+    try {
+      await Share.share({
+        message: buildInviteMessage(circleName, inviteCode, selectedTitles),
+        title: "Rejoins " + circleName + " sur Cercle",
+      });
+    } catch {}
+    finally { setSharing(false); }
+  }, [inviteCode, circleName, selectedTitles]);
 
-  const canGoStep1 = useMemo(() => choice === "create" || choice === "later", [choice]);
-  const canGoStep2 = useMemo(() => String(circleName || "").trim().length > 0, [circleName]);
+  const goToCircle = useCallback(async () => {
+    try {
+      const user = await getCurrentUser();
+      if (user?.id) await AsyncStorage.setItem(onboardingKey(user.id), "1");
+    } catch {}
+    navigation.reset({
+      index: 0,
+      routes: [{
+        name: "AppTabs",
+        params: {
+          screen: "Circle",
+          params: { circleId: createdId, justCreated: true, refreshKey: Date.now() },
+        },
+      }],
+    });
+  }, [navigation, createdId]);
+
+  const onSkip = useCallback(async () => {
+    try {
+      const user = await getCurrentUser();
+      if (user?.id) await AsyncStorage.setItem(onboardingKey(user.id), "1");
+    } catch {}
+    navigation.reset({ index: 0, routes: [{ name: "AppTabs" }] });
+  }, [navigation]);
 
   if (checking) {
     return (
-      <SafeAreaView style={S.safe}>
-        <View style={S.center}>
-          <ActivityIndicator />
-          <Text style={S.sub}>Chargement…</Text>
+      <SafeAreaView style={SS.safe}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={MINT} />
         </View>
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={S.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={S.wrap}>
-        <View style={S.card}>
-          {step === 0 && (
-            <>
-              <Text style={S.title}>On lance ton premier cercle ?</Text>
-              <Text style={S.sub}>2 minutes : un nom + 3 objets, et c’est prêt.</Text>
+  /* ── ETAPE 1 : Nom + objets ── */
+  if (step === 1) return (
+    <SafeAreaView style={SS.safe} edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
 
-              <View style={{ height: 14 }} />
-
-              <TouchableOpacity
-                activeOpacity={0.92}
-                onPress={() => setChoice("create")}
-                style={[S.choiceCard, choice === "create" && S.choiceCardActive]}
-              >
-                <MaterialCommunityIcons name="plus-circle-outline" size={20} color={colors.text} />
-                <View style={{ flex: 1 }}>
-                  <Text style={S.choiceTitle}>Créer un cercle</Text>
-                  <Text style={S.choiceSub}>On prépare ton feed</Text>
-                </View>
-                {choice === "create" && <MaterialCommunityIcons name="check" size={20} color={colors.brand} />}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.92}
-                onPress={() => setChoice("later")}
-                style={[S.choiceCard, choice === "later" && S.choiceCardActive]}
-              >
-                <MaterialCommunityIcons name="arrow-right-circle-outline" size={20} color={colors.text} />
-                <View style={{ flex: 1 }}>
-                  <Text style={S.choiceTitle}>Passer</Text>
-                  <Text style={S.choiceSub}>Je ferai ça plus tard</Text>
-                </View>
-                {choice === "later" && <MaterialCommunityIcons name="check" size={20} color={colors.brand} />}
-              </TouchableOpacity>
-
-              <View style={{ height: 16 }} />
-
-              <TouchableOpacity
-                disabled={!canGoStep1}
-                activeOpacity={0.92}
-                onPress={() => (choice === "later" ? onPass() : setStep(1))}
-                style={[S.primaryBtn, !canGoStep1 && { opacity: 0.5 }]}
-              >
-                <Text style={S.primaryTxt}>{choice === "later" ? "Passer" : "Continuer"}</Text>
-              </TouchableOpacity>
-            </>
+        <Animated.View style={[SS.topBar, { opacity: fadeAnim }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={SS.h1}>{"Qu'as-tu a partager ?"}</Text>
+            <Text style={SS.sub}>{"Selectionne au moins 3 objets."}</Text>
+          </View>
+          {totalSelected >= 3 && (
+            <View style={SS.readyBadge}>
+              <MaterialCommunityIcons name="check" size={11} color={BG} />
+              <Text style={SS.readyBadgeTxt}>{totalSelected}</Text>
+            </View>
           )}
+        </Animated.View>
 
-          {step === 1 && (
-            <>
-              <Text style={S.title}>Nom du cercle</Text>
-              <Text style={S.sub}>Simple et clair. Modifiable plus tard.</Text>
+        <ScrollView showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 130 }}>
 
-              <TextInput
-                value={circleName}
-                onChangeText={setCircleName}
-                placeholder="Ex: Famille"
-                placeholderTextColor={colors.subtext}
-                style={S.input}
-                autoCorrect={false}
-                returnKeyType="done"
-              />
+          {/* Nom du cercle */}
+          <View style={SS.nameSection}>
+            <Text style={SS.sectionLabel}>Nom de ton cercle</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 7, marginBottom: 10 }}>
+              {["Famille", "Colocs", "Voisins", "Amis", "Quartier"].map((s) => (
+                <TouchableOpacity key={s} onPress={() => setCircleName(s)}
+                  style={[SS.suggChip, circleName === s && SS.suggChipActive]}>
+                  <Text style={[SS.suggTxt, circleName === s && { color: MINT, fontWeight: "900" }]}>{s}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TextInput value={circleName} onChangeText={setCircleName}
+              placeholder="Nom personnalise" placeholderTextColor={SUBTEXT}
+              style={SS.nameInput} autoCorrect={false} returnKeyType="done"
+              selectTextOnFocus />
+          </View>
 
-              <View style={{ height: 14 }} />
+          {/* Catégories */}
+          <View style={{ paddingHorizontal: 16 }}>
+            {PRIORITY_CATS.map((cat) => {
+              const catSel    = selections[cat.key] || [];
+              const catCustom = customItems[cat.key] || [];
+              const draft     = customDrafts[cat.key] || "";
+              return (
+                <View key={cat.key} style={{ marginBottom: 28 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                    <View style={[SS.catIcon, { backgroundColor: cat.color + "18" }]}>
+                      <MaterialCommunityIcons name={cat.icon} size={16} color={cat.color} />
+                    </View>
+                    <Text style={SS.catLabel}>{cat.label}</Text>
+                    {catSel.length > 0 && (
+                      <Text style={{ color: cat.color, fontWeight: "900", fontSize: 13 }}>
+                        {catSel.length + " ok"}
+                      </Text>
+                    )}
+                  </View>
 
-              <TouchableOpacity
-                disabled={!canGoStep2}
-                activeOpacity={0.92}
-                onPress={() => setStep(2)}
-                style={[S.primaryBtn, !canGoStep2 && { opacity: 0.5 }]}
-              >
-                <Text style={S.primaryTxt}>Choisir 3 objets</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity activeOpacity={0.92} onPress={() => setStep(0)} style={S.linkBtn}>
-                <Text style={S.linkTxt}>Retour</Text>
-              </TouchableOpacity>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <Text style={S.title}>Choisis tes 3 premiers objets</Text>
-              <Text style={S.sub}>Sélection rapide, tu complètes après si tu veux.</Text>
-
-              <View style={{ height: 10 }} />
-
-              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-                <Text style={S.groupTitle}>Outdoor</Text>
-                <View style={S.chips}>
-                  {(PRESETS.outdoor || []).map((label) => {
-                    const on = selOutdoor.includes(label);
-                    return (
-                      <TouchableOpacity
-                        key={`outdoor-${label}`}
-                        onPress={() => toggle(setSelOutdoor, label)}
-                        activeOpacity={0.9}
-                        style={[S.chip, on && S.chipOn]}
-                      >
-                        <Text style={[S.chipTxt, on && S.chipTxtOn]}>{label}</Text>
+                  <View style={SS.chips}>
+                    {cat.items.map((label) => (
+                      <Chip key={cat.key + "-" + label} label={label}
+                        selected={catSel.includes(label)}
+                        onPress={() => toggle(cat.key, label)}
+                        color={cat.color} />
+                    ))}
+                    {catCustom.map((label) => (
+                      <TouchableOpacity key={"custom-" + label}
+                        onPress={() => removeCustom(cat.key, label)}
+                        style={[SS.chip, {
+                          backgroundColor: cat.color + "18",
+                          borderColor: cat.color + "50",
+                          flexDirection: "row", gap: 5,
+                        }]}>
+                        <Text style={{ color: cat.color, fontWeight: "900", fontSize: 12 }}>{label}</Text>
+                        <MaterialCommunityIcons name="close" size={12} color={cat.color} />
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                    ))}
+                  </View>
 
-                <Text style={S.groupTitle}>Travaux</Text>
-                <View style={S.chips}>
-                  {(PRESETS.travaux || []).map((label) => {
-                    const on = selTravaux.includes(label);
-                    return (
-                      <TouchableOpacity
-                        key={`travaux-${label}`}
-                        onPress={() => toggle(setSelTravaux, label)}
-                        activeOpacity={0.9}
-                        style={[S.chip, on && S.chipOn]}
-                      >
-                        <Text style={[S.chipTxt, on && S.chipTxtOn]}>{label}</Text>
+                  <View style={[SS.addRow, { borderColor: cat.color + "22" }]}>
+                    <TextInput
+                      value={draft}
+                      onChangeText={(v) => setCustomDrafts((p) => ({ ...p, [cat.key]: v }))}
+                      placeholder="Ajouter un objet..."
+                      placeholderTextColor={SUBTEXT}
+                      style={SS.addInput}
+                      returnKeyType="done"
+                      onSubmitEditing={() => addCustom(cat.key)}
+                    />
+                    {!!draft.trim() && (
+                      <TouchableOpacity onPress={() => addCustom(cat.key)}
+                        style={[SS.addBtn, { backgroundColor: cat.color }]}>
+                        <MaterialCommunityIcons name="plus" size={16} color={BG} />
                       </TouchableOpacity>
-                    );
-                  })}
+                    )}
+                  </View>
                 </View>
+              );
+            })}
+          </View>
+        </ScrollView>
 
-                <Text style={S.groupTitle}>Maison</Text>
-                <View style={S.chips}>
-                  {(PRESETS.maison || []).map((label) => {
-                    const on = selMaison.includes(label);
-                    return (
-                      <TouchableOpacity
-                        key={`maison-${label}`}
-                        onPress={() => toggle(setSelMaison, label)}
-                        activeOpacity={0.9}
-                        style={[S.chip, on && S.chipOn]}
-                      >
-                        <Text style={[S.chipTxt, on && S.chipTxtOn]}>{label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                <View style={{ height: 10 }} />
-              </ScrollView>
-
-              <View style={{ height: 12 }} />
-
-              <TouchableOpacity
-                disabled={saving}
-                activeOpacity={0.92}
-                onPress={onValidate}
-                style={[S.primaryBtn, saving && { opacity: 0.7 }]}
-              >
-                {saving ? <ActivityIndicator color={colors.bg} /> : <Text style={S.primaryTxt}>Valider</Text>}
-              </TouchableOpacity>
-
-              <Text style={S.hint}>
-                Sélection : <Text style={{ color: colors.brand, fontWeight: "900" }}>{totalSelected}</Text>
+        {/* Footer */}
+        <View style={SS.footer}>
+          <TouchableOpacity onPress={onValidate}
+            disabled={saving || totalSelected < 3}
+            style={[SS.primaryBtn, (saving || totalSelected < 3) && { opacity: 0.42 }]}
+            activeOpacity={0.88}>
+            {saving ? <ActivityIndicator color={BG} /> : (
+              <Text style={SS.primaryTxt}>
+                {totalSelected < 3
+                  ? "Selectionne encore " + (3 - totalSelected) + " objet" + (3 - totalSelected > 1 ? "s" : "")
+                  : "Creer \"" + circleName + "\" avec " + totalSelected + " objet" + (totalSelected > 1 ? "s" : "") + " >"}
               </Text>
-
-              <TouchableOpacity activeOpacity={0.92} onPress={() => setStep(1)} style={S.linkBtn}>
-                <Text style={S.linkTxt}>Retour</Text>
-              </TouchableOpacity>
-            </>
-          )}
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onSkip} style={{ alignItems: "center", paddingVertical: 12 }}>
+            <Text style={{ color: SUBTEXT, fontSize: 14, fontWeight: "600" }}>{"Passer cette etape"}</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+
+  /* ── ETAPE 2 : Succes + invitation ── */
+  return (
+    <SafeAreaView style={SS.safe} edges={["top", "left", "right"]}>
+      <ScrollView contentContainerStyle={[SS.scroll, { alignItems: "center" }]}
+        showsVerticalScrollIndicator={false}>
+        <Animated.View style={{
+          width: "100%", opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }], alignItems: "center",
+        }}>
+          <View style={SS.successRing}>
+            <MaterialCommunityIcons name="check-circle" size={44} color={MINT} />
+          </View>
+
+          <Text style={[SS.h1, { textAlign: "center", marginTop: 16 }]}>
+            {'"' + circleName + '" est pret !'}
+          </Text>
+          <Text style={[SS.sub, { textAlign: "center" }]}>
+            {totalSelected + " objet" + (totalSelected > 1 ? "s" : "") + " dans ton inventaire."}
+            {"\nInvite tes proches pour qu'ils en profitent."}
+          </Text>
+
+          {/* Recap objets */}
+          {selectedTitles.length > 0 && (
+            <View style={SS.itemsRecap}>
+              {selectedTitles.slice(0, 5).map((t, i) => (
+                <View key={i} style={SS.itemsRecapRow}>
+                  <MaterialCommunityIcons name="check" size={13} color={MINT} />
+                  <Text style={SS.itemsRecapTxt}>{t}</Text>
+                </View>
+              ))}
+              {selectedTitles.length > 5 && (
+                <Text style={{ color: SUBTEXT, fontSize: 12, marginTop: 4 }}>
+                  {"+ " + (selectedTitles.length - 5) + " autres"}
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Code */}
+          {!!inviteCode && (
+            <View style={SS.codeCard}>
+              <Text style={SS.codeLabel}>{"Code d'invitation"}</Text>
+              <Text style={SS.codeValue}>{inviteCode}</Text>
+              <Text style={SS.codeSub}>
+                {"Tes proches ouvrent Cercle, appuient sur\n\"J'ai un code\" et tapent ce code."}
+              </Text>
+            </View>
+          )}
+
+          <TouchableOpacity onPress={shareInvitation} disabled={sharing}
+            style={[SS.primaryBtn, { width: "100%", marginTop: 24, opacity: sharing ? 0.7 : 1 }]}
+            activeOpacity={0.88}>
+            {sharing ? <ActivityIndicator color={BG} /> : (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <MaterialCommunityIcons name="share-variant" size={18} color={BG} />
+                <Text style={SS.primaryTxt}>{"Inviter mes proches"}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={goToCircle}
+            style={[SS.ghostBtn, { width: "100%", marginTop: 12 }]} activeOpacity={0.88}>
+            <Text style={SS.ghostTxt}>{"Acceder a mon cercle >"}</Text>
+          </TouchableOpacity>
+
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
-const cardBase = {
-  borderWidth: 1,
-  borderColor: colors.stroke,
-  backgroundColor: colors.card,
-};
+/* ─── STYLES ─── */
+const SS = StyleSheet.create({
+  safe:   { flex: 1, backgroundColor: BG },
+  scroll: { padding: 20, paddingTop: 36, paddingBottom: 48 },
 
-const S = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  wrap: { flex: 1, padding: 16, justifyContent: "center" },
-
-  center: { alignItems: "center", justifyContent: "center", gap: 10 },
-
-  card: { borderRadius: 18, padding: 16, ...cardBase },
-
-  title: { color: colors.text, fontWeight: "900", fontSize: 18, textAlign: "center" },
-  sub: { color: colors.subtext, marginTop: 8, lineHeight: 18, textAlign: "center" },
-
-  choiceCard: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-    padding: 12,
-    borderRadius: 16,
-    ...cardBase,
-    marginTop: 10,
+  topBar: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12,
   },
-  choiceCardActive: {
-    borderColor: "rgba(29,255,194,0.35)",
-    backgroundColor: "rgba(29,255,194,0.12)",
-  },
-  choiceTitle: { color: colors.text, fontWeight: "900" },
-  choiceSub: { color: colors.subtext, marginTop: 2, fontWeight: "700" },
+  h1:  { color: TEXT, fontSize: 22, fontWeight: "900", letterSpacing: -0.3, lineHeight: 28 },
+  sub: { color: SUBTEXT, fontSize: 14, lineHeight: 20, marginTop: 4 },
 
-  input: {
-    backgroundColor: "rgba(0,0,0,0.15)",
-    color: colors.text,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: colors.stroke,
+  readyBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: MINT, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  readyBadgeTxt: { color: BG, fontSize: 13, fontWeight: "900" },
+
+  nameSection: {
+    paddingHorizontal: 16, paddingBottom: 20,
+    borderBottomWidth: 1, borderBottomColor: STROKE, marginBottom: 20,
+  },
+  sectionLabel:   { color: SUBTEXT, fontSize: 12, fontWeight: "700", letterSpacing: 0.8, marginBottom: 8 },
+  suggChip:       { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: STROKE, backgroundColor: "rgba(255,255,255,0.04)" },
+  suggChipActive: { borderColor: "rgba(29,255,194,0.35)", backgroundColor: "rgba(29,255,194,0.08)" },
+  suggTxt:        { color: SUBTEXT, fontWeight: "700", fontSize: 13 },
+  nameInput: {
+    backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 13,
+    borderWidth: 1, borderColor: STROKE,
+    color: TEXT, fontSize: 17, fontWeight: "900",
+    paddingHorizontal: 14, paddingVertical: 13, letterSpacing: -0.2,
   },
 
-  groupTitle: { color: colors.text, fontWeight: "900", marginTop: 12, marginBottom: 8 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.stroke,
-    backgroundColor: "rgba(255,255,255,0.03)",
+  catIcon:  { width: 30, height: 30, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+  catLabel: { color: TEXT, fontWeight: "900", fontSize: 15, flex: 1 },
+
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  chip:  {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingVertical: 8, paddingHorizontal: 11, borderRadius: 999,
+    borderWidth: 1, borderColor: STROKE, backgroundColor: "rgba(255,255,255,0.03)",
   },
-  chipOn: { borderColor: "rgba(29,255,194,0.35)", backgroundColor: "rgba(29,255,194,0.14)" },
-  chipTxt: { color: colors.subtext, fontWeight: "800", fontSize: 12 },
-  chipTxtOn: { color: colors.text },
+  chipTxt: { color: SUBTEXT, fontWeight: "700", fontSize: 13 },
+
+  addRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    borderRadius: 12, borderWidth: 1, backgroundColor: "rgba(255,255,255,0.03)",
+    paddingHorizontal: 12, paddingVertical: 2,
+  },
+  addInput: { flex: 1, color: TEXT, fontSize: 14, paddingVertical: 10 },
+  addBtn:   { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+
+  footer: { padding: 16, paddingBottom: 20, borderTopWidth: 1, borderTopColor: STROKE },
 
   primaryBtn: {
-    backgroundColor: colors.brand,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    width: "100%",
-    marginTop: 10,
+    backgroundColor: MINT, borderRadius: 14, height: 52,
+    alignItems: "center", justifyContent: "center",
   },
-  primaryTxt: { color: colors.bg, fontWeight: "900", fontSize: 16 },
+  primaryTxt: { color: BG, fontWeight: "900", fontSize: 15 },
+  ghostBtn:   { height: 46, alignItems: "center", justifyContent: "center" },
+  ghostTxt:   { color: SUBTEXT, fontWeight: "700", fontSize: 14 },
 
-  linkBtn: { alignItems: "center", paddingVertical: 10 },
-  linkTxt: { color: colors.brand, fontWeight: "900" },
+  successRing: {
+    width: 82, height: 82, borderRadius: 26,
+    backgroundColor: "rgba(29,255,194,0.10)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.25)",
+    alignItems: "center", justifyContent: "center",
+  },
 
-  hint: { color: colors.subtext, textAlign: "center", marginTop: 10, fontWeight: "800" },
+  itemsRecap: {
+    width: "100%", marginTop: 20,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: STROKE,
+    borderRadius: 16, padding: 14, gap: 8,
+  },
+  itemsRecapRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  itemsRecapTxt: { color: TEXT, fontSize: 14, fontWeight: "700" },
+
+  codeCard: {
+    width: "100%", marginTop: 20,
+    backgroundColor: "rgba(29,255,194,0.06)",
+    borderWidth: 1, borderColor: "rgba(29,255,194,0.22)",
+    borderRadius: 20, padding: 20, alignItems: "center", gap: 8,
+  },
+  codeLabel: { color: SUBTEXT, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+  codeValue: { color: MINT, fontSize: 26, fontWeight: "900", letterSpacing: 3 },
+  codeSub:   { color: SUBTEXT, fontSize: 13, textAlign: "center", lineHeight: 18 },
 });

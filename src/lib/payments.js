@@ -1,8 +1,9 @@
 import * as Linking from 'expo-linking';
-import Constants from 'expo-constants';
 
-const { LYDIA_VENDOR_TOKEN, LYDIA_REDIRECT_URL, STRIPE_PUBLISHABLE_KEY } = (Constants?.expoConfig?.extra || {});
-
+// src/lib/payments.js
+export const LYDIA_VENDOR_TOKEN = process.env.EXPO_PUBLIC_LYDIA_VENDOR_TOKEN ?? "";
+export const LYDIA_REDIRECT_URL = process.env.EXPO_PUBLIC_LYDIA_REDIRECT_URL ?? "";
+export const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 /**
  * Create a payment link for an intent.
  * provider: 'lydia' | 'stripe' (stripe here is a placeholder to integrate with your server / Stripe Checkout)
