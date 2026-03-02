@@ -123,13 +123,14 @@ export default ({ config }) => {
     ["expo-build-properties", { ios: { deploymentTarget: "15.1" } }],
 
     [
-      "expo-splash-screen",
-      {
-        preventAutoHide: false,
-        backgroundColor: "#141827",
-        resizeMode: "contain",
-      },
-    ],
+  "expo-splash-screen",
+  {
+    preventAutoHide: false,
+    backgroundColor: "#141827",
+    image: "./assets/splash.png",
+    resizeMode: "contain",
+  },
+],
 
     "@react-native-community/datetimepicker",
     "expo-contacts",
