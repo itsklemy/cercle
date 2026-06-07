@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View, Text, TouchableOpacity, TextInput, ActivityIndicator,
@@ -18,7 +17,7 @@ const SUBTEXT = "#5A6478";
 const STROKE  = "rgba(255,255,255,0.08)";
 const LEMON   = "#FFE66D";
 const SKY     = "#85CCFF";
-const GREEN   = "#6EE7B7";
+const ROSE    = "#FF8FA3";
 
 /* ─── CONSTANTS ─── */
 const ONBOARDING_KEY_PREFIX = "onboarding_done_v1_";
@@ -27,42 +26,52 @@ const ITEMS_TABLE           = "items";
 const onboardingKey         = (uid) => `${ONBOARDING_KEY_PREFIX}${String(uid || "")}`;
 
 /* ─────────────────────────────────────────────
-   3 CATÉGORIES PRIORITAIRES
-   Objets chers, encombrants, utilisés 1x/an
-   La vraie raison de télécharger l'app.
-   Clés = exactement celles de CircleScreen/CATEGORIES
+   4 CATÉGORIES — registre chaud, universel
+   Objets que tout le monde a et emprunte déjà
 ─────────────────────────────────────────────── */
 const PRIORITY_CATS = [
   {
-    key: "bricolage", label: "Bricolage & Travaux",
-    icon: "hammer-screwdriver", color: SKY,
+    key: "vacances", label: "Vacances & Week-ends",
+    icon: "umbrella-beach-outline", color: MINT,
     items: [
-      "Perceuse", "Visseuse", "Perforateur SDS", "Marteau piqueur",
-      "Scie circulaire", "Scie sauteuse", "Ponceuse orbitale",
-      "Niveau laser", "Compresseur", "Pistolet peinture",
-      "Echelle coulissante", "Echafaudage", "Tresteaux",
-      "Diable", "Sangles arrimage",
+      "Tente familiale", "Tente 2 places", "Sac de couchage",
+      "Matelas gonflable", "Glaciere", "Parasol de plage",
+      "Chaises pliantes", "Table pliante", "Hamac",
+      "Planche de paddle", "Kayak", "Velo pliant",
+      "Remorque voiture", "Galerie de toit",
     ],
   },
   {
-    key: "sport", label: "Outdoor & Camping",
-    icon: "hiking", color: MINT,
+    key: "bebe", label: "Bebe & Enfants",
+    icon: "baby-carriage", color: LEMON,
     items: [
-      "Tente 2 places", "Tente familiale", "Sac de couchage",
-      "Matelas gonflable", "Rechaud camping", "Table pliante",
-      "Chaises pliantes", "Hamac", "Parasol", "Glaciere",
-      "Sac a dos rando", "Batons de marche",
-      "Kayak", "Planche de paddle", "Velo pliant",
+      "Poussette", "Lit parapluie", "Transat bebe",
+      "Chaise haute", "Baby phone", "Tapis d eveil",
+      "Siege auto", "Portage bebe", "Baignoire bebe",
+      "Trottinette enfant", "Velo enfant", "Trampoline",
+      "Piscine gonflable", "Toboggan",
+    ],
+  },
+  {
+    key: "apero", label: "Repas & Convivialite",
+    icon: "glass-cocktail", color: SKY,
+    items: [
+      "Plancha", "Barbecue", "Raclette",
+      "Fondue", "Machine a crepes", "Yaourtiere",
+      "Sorbetiere", "Centrifugeuse", "Blender puissant",
+      "Desserte roulante", "Chapiteau", "Tonnelle",
+      "Guirlandes lumineuses", "Enceinte bluetooth",
     ],
   },
   {
     key: "maison", label: "Maison & Quotidien",
-    icon: "home-variant-outline", color: LEMON,
+    icon: "home-heart", color: ROSE,
     items: [
-      "Escabeau", "Aspirateur", "Robot aspirateur", "Nettoyeur vapeur",
-      "Shampouineuse", "Table a repasser", "Rallonge electrique",
-      "Ventilateur", "Chauffage appoint", "Climatiseur mobile",
-      "Deshumidificateur", "Machine a coudre", "Pistolet colle",
+      "Escabeau", "Aspirateur", "Nettoyeur vapeur",
+      "Shampouineuse moquette", "Karcher", "Tondeuse",
+      "Taille-haie", "Perceuse", "Visseuse",
+      "Scie circulaire", "Machine a coudre",
+      "Climatiseur mobile", "Deshumidificateur", "Ventilateur",
     ],
   },
 ];
@@ -107,18 +116,21 @@ async function getOrCreateInviteCode(circleId, circleName) {
 }
 
 const buildInviteMessage = (circleName, code, itemTitles = []) => {
-  const top = itemTitles.slice(0, 3);
-  const objectLine = top.length > 0
-    ? "\nJe mets a dispo : " + top.join(", ") + "\n"
-    : "";
+ const top = itemTitles.slice(0, 3);
+  const objectLine = top.length > 0 ? `\nDans mon cercle : ${top.join(", ")}…\n` : "\n";
   return [
-    "Je t'invite dans mon cercle \"" + circleName + "\" sur Cercle !",
+    `Pourquoi acheter quand tu peux emprunter ?`,
+    `Rejoins mon Cercle "${circleName}" et accède à tout ce que mes proches — et leurs proches — ont à prêter.`,
     objectLine,
-    "1. Telecharge l'app Cercle",
-    "2. Appuie sur \"J'ai un code d'invitation\"",
-    "3. Entre ce code : " + code,
-    "",
-    "C'est tout !",
+    `Télécharge l'app Cercle :`,
+    `iOS — https://apps.apple.com/fr/app/cercle-app/id6753151517`,
+    `Android — https://play.google.com/store/apps/details?id=com.cercle.app`,
+    ``,
+    `Mon code d'invitation :`,
+    ``,
+    `${code}`,
+    ``,
+    `(Une fois l'app installée — "J'ai un code d'invitation")`,
   ].join("\n");
 };
 
@@ -495,7 +507,6 @@ export default function InventoryOnboardingScreen({ navigation, route }) {
             {"\nInvite tes proches pour qu'ils en profitent."}
           </Text>
 
-          {/* Recap objets */}
           {selectedTitles.length > 0 && (
             <View style={SS.itemsRecap}>
               {selectedTitles.slice(0, 5).map((t, i) => (
@@ -512,7 +523,6 @@ export default function InventoryOnboardingScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Code */}
           {!!inviteCode && (
             <View style={SS.codeCard}>
               <Text style={SS.codeLabel}>{"Code d'invitation"}</Text>

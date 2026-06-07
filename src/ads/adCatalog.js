@@ -14,7 +14,7 @@ export const DEFAULT_ADS = [
   {
     id: 'demo_dash_001',
     placement: PLACEMENTS.DASHBOARD_ENTER,
-    active: true,
+    active: false,
     title: 'Sponsorisé',
     videoUrl: 'https://your-cdn-or-storage/video-dashboard.mp4',
     clickUrl: 'https://cercle.app', // optionnel
@@ -25,7 +25,7 @@ export const DEFAULT_ADS = [
   {
     id: 'demo_open_001',
     placement: PLACEMENTS.OPEN_3RD_TODAY,
-    active: true,
+    active: false,
     title: 'Sponsorisé',
     videoUrl: 'https://your-cdn-or-storage/video-open.mp4',
     clickUrl: 'https://cercle.app',

@@ -10,12 +10,15 @@ export default ({ config }) => {
     slug: "cercle",
     scheme: "cercle",
 
-    version: "7.0.3",
-    runtimeVersion: "7.0.3",
+    version: "7.0.6",
+    runtimeVersion: "7.0.5",
 
     orientation: "portrait",
+
+    // ✅ icon.png = icône iOS + fallback. Doit être 1024×1024, fond plein, sans arrondi.
     icon: "./assets/icon.png",
-    userInterfaceStyle: "automatic",
+
+    userInterfaceStyle: "dark", // ✅ forcé dark — évite le flash blanc au démarrage
     assetBundlePatterns: ["**/*"],
     jsEngine: "hermes",
 
@@ -23,18 +26,12 @@ export default ({ config }) => {
       supportsTablet: true,
       bundleIdentifier: "com.cercle.app",
       teamId: "HM95CV96WV",
-      buildNumber: "14",
+      buildNumber: "18",
 
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
         UIBackgroundModes: ["remote-notification"],
-        UISupportedInterfaceOrientations: ["UIInterfaceOrientationPortrait"],
-        // ✅ remote-notification toujours présent — nécessaire pour expo-notifications
-        // en build natif (App Store ET dev-client).
-        // Expo Go l'injecte lui-même, mais un build standalone en a besoin ici.
-        UIBackgroundModes: ["remote-notification"],
-
         associatedDomains: ["applinks:stunning-pothos-07a3d3.netlify.app"],
 
         NSAppTransportSecurity: isDev
@@ -81,12 +78,24 @@ export default ({ config }) => {
 
     android: {
       package: "com.cercle.app",
-      versionCode: 56,
+      versionCode: 60,
+      googleServicesFile: "./google-services.json",
 
+      // ✅ CORRECTIF ICÔNE :
+      // foregroundImage doit être une image dédiée adaptive (fond transparent,
+      // sujet centré, marges ~33% de chaque côté) — PAS icon.png directement.
+      // Si tu n'as pas encore assets/adaptive-icon.png, crée-le ou utilise
+      // un outil comme https://adapticon.toasteddesign.com
       adaptiveIcon: {
-        foregroundImage: "./assets/icon.png",
-        backgroundColor: "#141827",
+        foregroundImage: "./assets/adaptive-icon.png", // ✅ fichier dédié
+        monochromeImage: "./assets/adaptive-icon.png", // ✅ Android 13+ themed icons
+        backgroundColor: "#07090F",                    // ✅ même couleur que BG app
       },
+
+      // ✅ CORRECTIF BOUTONS/TEXTE COUPÉS sur Android récent (API 35+) :
+      // Sans ça, le système force edge-to-edge et les insets ne sont pas
+      // correctement transmis à React Native.
+      softwareKeyboardLayoutMode: "pan", // ✅ évite que le clavier coupe les boutons
 
       permissions: [
         "INTERNET",
@@ -116,34 +125,46 @@ export default ({ config }) => {
         url: "https://u.expo.dev/4de9ab1e-5c50-4931-b7a7-8c47a38d9f10",
       };
 
-  // ✅ expo-notifications dans commonPlugins (pas seulement en prod)
-  // Sans ça, le module natif n'est pas lié dans le build dev-client,
-  // et Constants n'est pas initialisé correctement → erreur "constants doesn't exist"
   const commonPlugins = [
-    ["expo-build-properties", { ios: { deploymentTarget: "15.1" } }],
+    [
+      "expo-build-properties",
+      {
+        ios: { deploymentTarget: "15.1" },
+        // ✅ CORRECTIF EDGE-TO-EDGE Android 15 (API 35+) :
+        // Désactive le comportement edge-to-edge forcé par le système
+        // pour que SafeAreaView et KeyboardAvoidingView fonctionnent correctement.
+       android: {
+  compileSdkVersion: 35,
+  targetSdkVersion: 35,
+  minSdkVersion: 24,
+  enableEdgeToEdge: true, // ✅ gère l'edge-to-edge proprement
+},
+      },
+    ],
 
     [
-  "expo-splash-screen",
-  {
-    preventAutoHide: false,
-    backgroundColor: "#141827",
-    image: "./assets/splash.png",
-    resizeMode: "contain",
-  },
-],
+      "expo-splash-screen",
+      {
+        preventAutoHide: false,
+        backgroundColor: "#07090F", // ✅ même couleur que BG app (était #141827, incohérent)
+        image: "./assets/splash.png",
+        // ✅ "cover" remplit tout l'écran sans bandes noires sur les grands écrans
+        resizeMode: "cover",
+      },
+    ],
 
     "@react-native-community/datetimepicker",
     "expo-contacts",
     "expo-image-picker",
     "expo-font",
+    "expo-apple-authentication",
+    "expo-web-browser",
 
-    // ✅ Déplacé ici : présent dans TOUS les builds (dev-client + prod)
-    // L'icône de notif n'est utilisée que sur Android/prod, pas d'impact en dev.
     [
       "expo-notifications",
       {
         icon: "./assets/notification-icon.png",
-        color: "#57ffca",
+        color: "#1DFFC2",
       },
     ],
   ];

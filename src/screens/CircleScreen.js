@@ -264,7 +264,11 @@ async function getOrCreateCircleInviteCode(circleId, circleName = "") {
   if (!user) return null;
   const existing = await supabase.from("circle_invites").select("code, created_at")
     .eq("circle_id", circleId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!existing.error && existing.data?.code) return String(existing.data.code);
+  if (!existing.error && existing.data?.code) {
+  const c = String(existing.data.code);
+  // Si c'est un vieux code illisible (pas le format PREFIX-SUFFIX), on en crée un nouveau
+  if (/^[A-Z]{2,10}-[A-Z0-9]{3,8}$/i.test(c)) return c;
+}
   const code = makeReadableCode(circleName);
   const ins = await supabase.from("circle_invites").insert({ circle_id: circleId, code, invited_by: user.id }).select("code").single();
   if (ins.error) return makeReadableCode(circleName);
@@ -273,17 +277,22 @@ async function getOrCreateCircleInviteCode(circleId, circleName = "") {
 
 const formatInviteMessage = (circleName, code, itemTitles = []) => {
   const top = itemTitles.slice(0, 3);
-  const objectLine = top.length > 0 ? `\nDans mon Cercle : ${top.join(", ")}\n` : "";
+  const objectLine = top.length > 0 ? `\nDans mon cercle : ${top.join(", ")}…\n` : "\n";
   return [
-    `Je t'invite dans mon Cercle "${circleName}" sur Cercle `,
+    `Pourquoi acheter quand tu peux emprunter ?`,
+    `Rejoins mon Cercle "${circleName}" et accède à tout ce que mes proches — et leurs proches — ont à prêter.`,
     objectLine,
-    `   1. Télécharge l'app Cercle`,
-    `   2. Appuie sur "J'ai un code d'invitation"`,
-    `   3. Entre ce code : ${code}`,
-    `\nC'est tout !`,
+    `Télécharge l'app Cercle :`,
+    `iOS — https://apps.apple.com/fr/app/cercle-app/id6753151517`,
+    `Android — https://play.google.com/store/apps/details?id=com.cercle.app`,
+    ``,
+    `Mon code d'invitation :`,
+    ``,
+    `${code}`,
+    ``,
+    `(Une fois l'app installée — "J'ai un code d'invitation")`,
   ].join("\n");
 };
-
 async function ensureContactsPermissionHard({ onGoToSettings } = {}) {
   try {
     const current = await Contacts.getPermissionsAsync();
@@ -340,47 +349,155 @@ async function shareItemToOtherCircles(item, destCircleIds, userId) {
 ───────────────────────────────────────────── */
 function useCircles(wantedId) {
   const [circles, setCircles] = useState([]);
-  const [active, setActive]   = useState(null);
-  const [ready, setReady]     = useState(false);
+  const [active, setActive] = useState(null);
+  const [ready, setReady] = useState(false);
 
   const loadCircles = useCallback(async (preferredId = null) => {
     const user = await getUserOrAlert();
     if (!user) return;
+
     setReady(false);
     try {
-      const [{ data: owned }, { data: memberOf }] = await Promise.all([
-        supabase.from("circles").select("*").eq("owner_id", user.id).order("created_at", { ascending: true }),
-        supabase.from("circle_members").select("circle_id, circles!inner(*)").eq("user_id", user.id),
-      ]);
-      const list = [...(owned || []), ...((memberOf || []).map((r) => r.circles).filter(Boolean))];
-      const uniq = Array.from(new Map(list.map((c) => [String(c.id), c])).values());
+      const memRes = await supabase
+        .from("circle_members")
+        .select("circle_id")
+        .eq("user_id", user.id);
+
+      if (memRes.error) throw memRes.error;
+
+      const ids = Array.from(
+        new Set((memRes.data || []).map((r) => String(r.circle_id)).filter(Boolean))
+      );
+
+      if (!ids.length) {
+        setCircles([]);
+        setActive(null);
+        return;
+      }
+
+      const circlesRes = await supabase
+        .from("circles")
+        .select("*")
+        .in("id", ids)
+        .order("created_at", { ascending: true });
+
+      if (circlesRes.error) throw circlesRes.error;
+
+      const uniq = Array.from(
+        new Map((circlesRes.data || []).map((c) => [String(c.id), c])).values()
+      );
+
       setCircles(uniq);
+
       const targetId = preferredId || wantedId;
-      setActive((targetId && uniq.find((c) => String(c.id) === String(targetId))) || uniq[0] || null);
-    } finally { setReady(true); }
+      setActive(
+        (targetId && uniq.find((c) => String(c.id) === String(targetId))) ||
+        uniq[0] ||
+        null
+      );
+    } catch (e) {
+      Log?.error?.("circles", "load", e);
+    } finally {
+      setReady(true);
+    }
   }, [wantedId]);
 
-  useEffect(() => { loadCircles(); }, [loadCircles]);
+  useEffect(() => {
+    loadCircles();
+  }, [loadCircles]);
+
   return { circles, activeCircle: active, setActiveCircle: setActive, reload: loadCircles, ready };
 }
 
 function useMembers(circleId) {
   const [members, setMembers] = useState([]);
+  const channelRef = useRef(null);
+  const loadRef = useRef(null);
+
   const load = useCallback(async () => {
-    if (!circleId) { setMembers([]); return; }
+    if (!circleId) {
+      setMembers([]);
+      return;
+    }
+
     try {
-      const memRes = await supabase.from("circle_members").select("user_id").eq("circle_id", circleId);
+      const memRes = await supabase
+        .from("circle_members")
+        .select("user_id, role, created_at")
+        .eq("circle_id", circleId);
+
       if (memRes.error) throw memRes.error;
-      const ids = (memRes.data || []).map((x) => x.user_id).filter(Boolean);
-      if (!ids.length) { setMembers([]); return; }
-      const profRes = await supabase.from("profiles").select("id, public_name").in("id", ids);
-      if (profRes.error) throw profRes.error;
-      const map = new Map((profRes.data || []).map((p) => [String(p.id), p]));
-      setMembers(ids.map((id) => ({ user_id: id, public_name: map.get(String(id))?.public_name || "Membre" }))
-        .sort((a, b) => String(a.public_name).localeCompare(String(b.public_name))));
-    } catch (e) { Log?.error?.("members", "load", e); setMembers([]); }
+
+      const rawIds = (memRes.data || []).map((x) => String(x.user_id)).filter(Boolean);
+      const ids = Array.from(new Set(rawIds));
+
+      if (!ids.length) {
+        setMembers([]);
+        return;
+      }
+
+      let profileMap = new Map();
+
+      const profRes = await supabase
+        .from("profiles")
+        .select("id, public_name")
+        .in("id", ids);
+
+      if (!profRes.error) {
+        profileMap = new Map((profRes.data || []).map((p) => [String(p.id), p]));
+      } else {
+        Log?.error?.("members", "profiles_load_failed", profRes.error);
+      }
+
+      const rows = (memRes.data || []).map((m) => {
+        const uid = String(m.user_id);
+        const p = profileMap.get(uid);
+
+        return {
+          user_id: uid,
+          role: m.role || "member",
+          joined_at: m.created_at || null,
+          public_name: p?.public_name || `Membre ${uid.slice(0, 6)}`,
+          has_profile: !!p,
+        };
+      });
+
+      rows.sort((a, b) => String(a.public_name).localeCompare(String(b.public_name)));
+      setMembers(rows);
+    } catch (e) {
+      Log?.error?.("members", "load", e);
+      // ne pas écraser brutalement avec [] si tu veux éviter l'effet "disparition"
+    }
   }, [circleId]);
+
+  useEffect(() => { loadRef.current = load; }, [load]);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!circleId) return;
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+    const ch = supabase
+      .channel(`circle_members:${circleId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "circle_members",
+          filter: `circle_id=eq.${circleId}`,
+        },
+        () => loadRef.current?.()
+      )
+      .subscribe();
+
+    channelRef.current = ch;
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, [circleId]);
+
   return { members, reload: load };
 }
 
@@ -552,6 +669,8 @@ function AvatarStack({ ownersList, max = 3, palette }) {
 /* ── Card Feed 2 colonnes ── */
 function FeedCard({ row, onPress, onShare, palette }) {
   const pal = palette || CIRCLE_PALETTES[0];
+  if (!row) return null;
+
   return (
     <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={S.feedCard}>
       <View style={{ height: 130, borderRadius: 16, overflow: "hidden" }}>
@@ -1011,18 +1130,46 @@ function InviteModal({ visible, onClose, circle, myItems, palette }) {
             <Text style={{ color: colors.subtext, fontSize: 13, marginBottom: 20 }}>Tes proches rejoignent en 30 secondes.</Text>
             {loading ? (
               <View style={{ alignItems: "center", padding: 28 }}><ActivityIndicator color={pal.primary} /></View>
-            ) : inviteCode ? (
-              <TouchableOpacity onPress={handleCopy} activeOpacity={0.85}
-                style={[S.codeBlock, { backgroundColor: pal.dim, borderColor: pal.border }]}>
-                <Text style={[S.codeTxt, { color: pal.primary }]}>{inviteCode}</Text>
-                <View style={[S.RC, { gap: 6, marginTop: 8, justifyContent: "center" }]}>
-                  <MaterialCommunityIcons name={copied ? "check" : "content-copy"} size={14} color={copied ? pal.primary : colors.subtext} />
-                  <Text style={{ color: copied ? pal.primary : colors.subtext, fontSize: 12, fontWeight: "700" }}>{copied ? "Copié !" : "Appuie pour copier"}</Text>
-                </View>
-              </TouchableOpacity>
-            ) : null}
+          ) : inviteCode ? (
+  <View style={[S.codeBlock, {
+    backgroundColor: pal.dim,
+    borderColor: copied ? pal.primary : pal.border,
+    borderWidth: copied ? 2 : 1,
+  }]}>
+    <Text style={{ color: colors.subtext, fontSize: 11, fontWeight: "700",
+      letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>
+      Code d'invitation
+    </Text>
+    <Text
+      value={inviteCode || ""}
+      editable={false}
+      selectTextOnFocus={true}
+      style={[S.codeTxt, { color: pal.primary, textAlign: "center" }]}
+    >
+      {inviteCode}
+    </Text>
+    <TouchableOpacity
+      onPress={handleCopy}
+      activeOpacity={0.75}
+      style={{ flexDirection: "row", alignItems: "center", gap: 6,
+        marginTop: 12, paddingHorizontal: 16, paddingVertical: 8,
+        borderRadius: 999, backgroundColor: copied ? pal.dim : colors.card,
+        borderWidth: 1, borderColor: copied ? pal.primary : colors.stroke }}
+    >
+      <MaterialCommunityIcons
+        name={copied ? "check-circle" : "content-copy"}
+        size={15}
+        color={copied ? pal.primary : colors.subtext}
+      />
+      <Text style={{ color: copied ? pal.primary : colors.subtext,
+        fontSize: 12, fontWeight: "700" }}>
+        {copied ? "✓ Copié !" : "Copier le code"}
+      </Text>
+    </TouchableOpacity>
+  </View>
+) : null}
             <Text style={{ color: colors.subtext, fontSize: 12, textAlign: "center", marginTop: 10, marginBottom: 20, lineHeight: 17 }}>
-              {"Télécharge Cercle → \"J'ai un code\" → tape ce code"}
+              {"<Partage ton Cercle avec qui tu veux"}
             </Text>
             <TouchableOpacity onPress={handleShare} style={[S.primaryBtn, { backgroundColor: pal.primary, marginBottom: 10 }]}>
               <MaterialCommunityIcons name="share-variant" size={18} color={colors.bg} />
@@ -1119,8 +1266,7 @@ function AddItemModal({ visible, onClose, onSave, circles, activeCircleId, palet
       if (editItem) {
         setPhoto(editItem.photo ? { uri: editItem.photo } : null); setTitle(editItem.title || ""); setItemDesc(editItem.description || "");
         setCategory(editItem.category || "other"); setItemIsFree(editItem.is_free !== false);
-        setItemCost(editItem.total_cost ? String(editItem.total_cost) : ""); setItemPeriod(editItem.period || "jour");
-        setDestIds([String(editItem.circle_id || activeCircleId || "")].filter(Boolean)); setStep(2);
+setItemCost(editItem.price_amount ? String(editItem.price_amount) : ""); setItemPeriod(editItem.price_unit || "jour");        setDestIds([String(editItem.circle_id || activeCircleId || "")].filter(Boolean)); setStep(2);
       } else {
         setPhoto(null); setTitle(""); setItemDesc(""); setCategory("other"); setItemIsFree(true);
         setItemCost(""); setItemPeriod("jour"); setDestIds(activeCircleId ? [String(activeCircleId)] : []); setStep(1);
@@ -1534,63 +1680,164 @@ export default function CircleScreen({ navigation }) {
       let photoUrl = null;
       if (photo?.uri && !photo.uri.startsWith("http")) { photoUrl = normalizeUrl(await uploadToStorage(photo, STORAGE_BUCKET_ITEMS, user.id)); }
       else if (photo?.uri) photoUrl = photo.uri;
-      const extraFields = { description: description || null, is_free: isFree !== false, total_cost: isFree !== false ? null : (totalCost ?? null), period: isFree !== false ? null : (period ?? null) };
-      if (editItem) {
+const extraFields = { description: description || null, is_free: isFree !== false, price_amount: isFree !== false ? null : (totalCost ?? null), price_unit: isFree !== false ? null : (period ?? null) };      if (editItem) {
         const { error } = await supabase.from("items").update({ title, category, photo: photoUrl ?? editItem.photo ?? null, ...extraFields }).eq("id", editItem.id).eq("owner_id", user.id);
         if (error) throw error;
       } else {
         const rows = (destIds || []).map((cid) => ({ owner_id: user.id, circle_id: String(cid), title, category, photo: photoUrl || null, ...extraFields }));
         const { error } = await supabase.from("items").insert(rows); if (error) throw error;
-        try {
-          const tokens = await getCircleMemberTokens(destIds[0]);
-          const myToken = await getUserToken(user.id);
-          const targets = (tokens || []).filter((t) => t && t !== myToken);
-          if (targets.length) await sendPush({ to: targets, title: "Nouveau dans le  🌿", body: `${title} vient d'être ajouté`, data: { type: "item_added" } });
-        } catch {}
+     try {
+  console.log("[push][item] début envoi");
+
+  const tokens = await getCircleMemberTokens(destIds[0], user.id);
+  console.log("[push][item] tokens =", tokens);
+
+  const myToken = await getUserToken(user.id);
+  console.log("[push][item] myToken =", myToken);
+
+  const targets = (tokens || []).filter((t) => t && t !== myToken);
+  console.log("[push][item] targets =", targets);
+
+  if (!targets.length) {
+    console.log("[push][item] skipped: no targets");
+  } else {
+    console.log("[push][item] avant sendPush");
+
+    const res = await sendPush({
+      to: targets,
+      title: "Nouveau dans le cercle 🌿",
+      body: `${title} vient d'être ajouté`,
+      data: { type: "item_added", circleId: destIds[0] },
+    });
+
+    console.log("[push][item] result =", res);
+  }
+} catch (e) {
+  console.log("[push][item] error =", e?.message || e);
+}
       }
       setEditingItem(null); refresh();
     } catch (e) { Alert.alert("Objet", e?.message || "Ajout impossible."); }
   }, [refresh]);
 
   /* ── Save inventaire rapide (multi-objets checklist) ── */
-  const handleSaveQuickInventory = useCallback(async ({ titles, category, destIds, isFree, priceAmount, pricePeriod }) => {
-    const user = await getUserOrAlert(); if (!user) return;
-    try {
-      const rows = [];
-      for (const cid of (destIds || [])) {
-        for (const title of (titles || [])) {
-          rows.push({ owner_id: user.id, circle_id: String(cid), title, category, photo: null, is_free: isFree !== false, total_cost: isFree !== false ? null : priceAmount, period: isFree !== false ? null : pricePeriod });
-        }
+ const handleSaveQuickInventory = useCallback(async ({ titles, category, destIds, isFree, priceAmount, pricePeriod }) => {
+  const user = await getUserOrAlert();
+  if (!user) return;
+
+  try {
+    const rows = [];
+
+    for (const cid of (destIds || [])) {
+      for (const title of (titles || [])) {
+        rows.push({
+          owner_id: user.id,
+          circle_id: String(cid),
+          title,
+          category,
+          photo: null,
+          is_free: isFree !== false,
+          price_amount: isFree !== false ? null : priceAmount,
+          price_unit: isFree !== false ? null : pricePeriod,
+        });
       }
-      if (!rows.length) return;
-      const { error } = await supabase.from("items").insert(rows);
-      if (error) throw error;
-      try {
-        const tokens = await getCircleMemberTokens(destIds[0]);
-        const myToken = await getUserToken(user.id);
-        const targets = (tokens || []).filter((t) => t && t !== myToken);
-        if (targets.length) await sendPush({ to: targets, title: "Inventaire mis à jour 🌿", body: `${titles.length} objet${titles.length > 1 ? "s" : ""} ajouté${titles.length > 1 ? "s" : ""}`, data: { type: "item_added" } });
-      } catch {}
-      refresh();
-      Alert.alert("Ajouté ✓", `${rows.length} objet${rows.length > 1 ? "s" : ""} mis à disposition.`);
-    } catch (e) { Alert.alert("Inventaire", e?.message || "Ajout impossible."); }
-  }, [refresh]);
+    }
+
+    if (!rows.length) return;
+
+    const { error } = await supabase.from("items").insert(rows);
+    if (error) throw error;
+
+    try {
+      console.log("[push][inventory] début envoi");
+
+      const tokens = await getCircleMemberTokens(destIds[0], user.id);
+      console.log("[push][inventory] tokens =", tokens);
+
+      const myToken = await getUserToken(user.id);
+      console.log("[push][inventory] myToken =", myToken);
+
+      const targets = (tokens || []).filter((t) => t && t !== myToken);
+      console.log("[push][inventory] targets =", targets);
+
+      if (!targets.length) {
+        console.log("[push][inventory] skipped: no targets");
+      } else {
+        console.log("[push][inventory] avant sendPush");
+
+        const res = await sendPush({
+          to: targets,
+          title: "Inventaire mis à jour 🌿",
+          body: `${titles.length} objet${titles.length > 1 ? "s" : ""} ajouté${titles.length > 1 ? "s" : ""}`,
+          data: { type: "item_added", circleId: destIds[0] },
+        });
+
+        console.log("[push][inventory] result =", res);
+      }
+    } catch (e) {
+      console.log("[push][inventory] error =", e?.message || e);
+    }
+
+    refresh();
+    Alert.alert("Ajouté ✓", `${rows.length} objet${rows.length > 1 ? "s" : ""} mis à disposition.`);
+  } catch (e) {
+    Alert.alert("Inventaire", e?.message || "Ajout impossible.");
+  }
+}, [refresh]);
 
   /* ── Save wave ── */
-  const handleSaveWave = useCallback(async ({ msg, category }) => {
-    const user = await getUserOrAlert(); if (!user || !activeCircle?.id) return;
+ const handleSaveWave = useCallback(async ({ msg, category }) => {
+  const user = await getUserOrAlert();
+  if (!user || !activeCircle?.id) return;
+
+  try {
+    const { error } = await supabase.from("calls").insert({
+      circle_id: activeCircle.id,
+      author_id: user.id,
+      message: msg,
+      category,
+      status: "open",
+    });
+
+    if (error) throw error;
+
     try {
-      const { error } = await supabase.from("calls").insert({ circle_id: activeCircle.id, author_id: user.id, message: msg, category, status: "open" });
-      if (error) throw error;
-      try {
-        const tokens = await getCircleMemberTokens(activeCircle.id);
-        const myToken = await getUserToken(user.id);
-        const targets = (tokens || []).filter((t) => t && t !== myToken);
-        if (targets.length) await sendPush({ to: targets, title: "Nouvelle onde ", body: msg.slice(0, 80), data: { type: "call_created", circleId: activeCircle.id } });
-      } catch {}
-      InteractionManager.runAfterInteractions(() => setTimeout(reloadCalls, 150));
-    } catch (e) { Alert.alert("Onde", e?.message || "Publication impossible."); }
-  }, [activeCircle?.id, reloadCalls]);
+      console.log("[push][wave] début envoi");
+
+      const tokens = await getCircleMemberTokens(activeCircle.id, user.id);
+      console.log("[push][wave] tokens =", tokens);
+
+      const myToken = await getUserToken(user.id);
+      console.log("[push][wave] myToken =", myToken);
+
+      const targets = (tokens || []).filter((t) => t && t !== myToken);
+      console.log("[push][wave] targets =", targets);
+
+      if (!targets.length) {
+        console.log("[push][wave] skipped: no targets");
+      } else {
+        console.log("[push][wave] avant sendPush");
+
+        const res = await sendPush({
+          to: targets,
+          title: "Nouvelle onde dans ton Cercle",
+          body: msg.slice(0, 80),
+          data: { type: "call_created", circleId: activeCircle.id },
+        });
+
+        console.log("[push][wave] result =", res);
+      }
+    } catch (e) {
+      console.log("[push][wave] error =", e?.message || e);
+    }
+
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(reloadCalls, 150);
+    });
+  } catch (e) {
+    Alert.alert("Onde", e?.message || "Publication impossible.");
+  }
+}, [activeCircle?.id, reloadCalls]);
 
   const deleteWave = useCallback(async (c) => {
     const user = await getUserOrAlert(); if (!user || String(c.author_id) !== String(user.id)) { Alert.alert("Onde", "Tu ne peux supprimer que tes ondes."); return; }
@@ -1622,20 +1869,49 @@ export default function CircleScreen({ navigation }) {
   }, [activeCircle, navigation]);
 
   const createCircle = useCallback(async (name) => {
-    const user = await getUserOrAlert(); if (!user) return null;
-    const clean = String(name || "").trim();
-    if (!clean) { Alert.alert("", "Donne un nom."); return null; }
-    try {
-      const { data: rpcData, error: rpcErr } = await supabase.rpc("create_circle", { p_name: clean });
-      const newId = typeof rpcData === "string" ? rpcData : rpcData?.id;
-      if (rpcErr || !newId) {
-        const { data: inserted, error: insErr } = await supabase.from("circles").insert({ name: clean, owner_id: user.id }).select("id").single();
-        if (insErr) throw insErr;
-        await reloadCircles(String(inserted.id)); return String(inserted.id);
-      }
-      await reloadCircles(String(newId)); return String(newId);
-    } catch (e) { Alert.alert("", e?.message || "Impossible."); return null; }
-  }, [reloadCircles]);
+  const user = await getUserOrAlert();
+  if (!user) return null;
+
+  const clean = String(name || "").trim();
+  if (!clean) {
+    Alert.alert("", "Donne un nom.");
+    return null;
+  }
+
+  try {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("create_circle", { p_name: clean });
+    const newId = typeof rpcData === "string" ? rpcData : rpcData?.id;
+
+    if (rpcErr || !newId) {
+      const { data: inserted, error: insErr } = await supabase
+        .from("circles")
+        .insert({ name: clean, owner_id: user.id })
+        .select("id")
+        .single();
+
+      if (insErr) throw insErr;
+
+      const { error: memberErr } = await supabase
+        .from("circle_members")
+        .insert({
+          circle_id: inserted.id,
+          user_id: user.id,
+          role: "owner",
+        });
+
+      if (memberErr) throw memberErr;
+
+      await reloadCircles(String(inserted.id));
+      return String(inserted.id);
+    }
+
+    await reloadCircles(String(newId));
+    return String(newId);
+  } catch (e) {
+    Alert.alert("", e?.message || "Impossible.");
+    return null;
+  }
+}, [reloadCircles]);
 
   const renameCircle = useCallback(async (newName) => {
     if (!activeCircle?.id || !isAdmin) return;
@@ -1663,40 +1939,136 @@ export default function CircleScreen({ navigation }) {
   }, [activeCircle, isAdmin, reloadCircles]);
 
   const normalizeCode = (raw) => {
-    let s = String(raw || "").trim();
-    try { s = decodeURIComponent(s); } catch {}
-    const mShort = s.match(/([A-Z]{2,10}-[A-Z0-9]{3,6})/i);
-    if (mShort?.[1]) return mShort[1].toUpperCase();
-    const candidates = s.match(/[A-Za-z0-9_-]{8,}/g) || [];
-    if (candidates.length) { candidates.sort((a, b) => b.length - a.length); return candidates[0]; }
-    return s.replace(/[^A-Za-z0-9_-]/g, "").toUpperCase();
-  };
+  let s = String(raw || "").trim();
+  try { s = decodeURIComponent(s); } catch {}
 
-  const joinByCode = useCallback(async (rawCode) => {
-    const user = await getUserOrAlert(); if (!user) return;
-    const code = normalizeCode(rawCode);
-    if (!code) { Alert.alert("Rejoindre", "Code invalide."); return; }
-    setJoiningByCode(true);
-    try {
-      const { data, error } = await supabase.rpc("join_circle_by_token_or_code_v2", { p_code: code });
-      if (error) throw error;
-      const circleId = (typeof data === "string" && data) || data?.circle_id || data?.id || null;
-      if (!circleId) throw new Error(" introuvable.");
-      await reloadCircles(String(circleId)); setJoinCodeOpen(false); setJoinCodeDraft("");
-      Alert.alert("Bienvenue ✓", "Tu as rejoint le  !");
-    } catch (e) { Alert.alert("Rejoindre", e?.message || "Code incorrect."); }
-    finally { setJoiningByCode(false); }
-  }, [reloadCircles]);
+  // Nouveau format : MONCERC-LAAZ, FAMILLE-7K2X (2-10 lettres + tiret + 3-8 alphanum)
+  const mNew = s.match(/\b([A-Z]{2,10}-[A-Z0-9]{3,8})\b/i);
+  if (mNew?.[1]) return mNew[1].toUpperCase();
 
-  /* ── Render ── */
-  const renderFeedCard = useCallback(({ item: row }) => {
-    if (row?.__empty) return <View style={[S.feedCard, { opacity: 0 }]} pointerEvents="none" />;
-    return (
-      <FeedCard row={row} palette={palette}
-        onPress={() => navTo("ItemDetail", { itemId: row.latestItemId, title: row.title, circleId: activeCircle?.id, titleKey: row.titleKey, ownersList: row.ownersList, count: row.count, category: row.category })}
-        onShare={() => openShareForItem({ ...row, circle_id: activeCircle?.id })} />
+  // Lien /invite/CODE
+  const mInvite = s.match(/\/invite\/([A-Za-z0-9_-]{8,})/i);
+  if (mInvite?.[1]) return mInvite[1];
+
+  // Ancien format base36/hex (19-32 chars sans tiret, genre fmkg5lhogrigh2wdyxd)
+  const mLong = s.match(/\b([A-Za-z0-9]{19,})\b/);
+  if (mLong?.[1]) return mLong[1];
+
+  // Fallback brut
+  return s.replace(/[^A-Za-z0-9_-]/g, "").toUpperCase();
+};
+
+ const joinByCode = useCallback(async (rawCode) => {
+  const user = await getUserOrAlert();
+  if (!user) return;
+
+  const code = normalizeCode(rawCode);
+
+  if (!code) {
+    Alert.alert("Rejoindre", "Code invalide.");
+    return;
+  }
+
+  setJoiningByCode(true);
+
+  try {
+    const { data, error } = await supabase.rpc(
+      "join_circle_by_token_or_code_v2",
+      { p_code: code }
     );
-  }, [navTo, activeCircle?.id, palette, openShareForItem]);
+
+    if (error) throw error;
+
+    const circleId =
+      (typeof data === "string" && data) ||
+      data?.circle_id ||
+      data?.id ||
+      null;
+
+    if (!circleId) throw new Error("Cercle introuvable.");
+
+    /* recharge les cercles */
+    await reloadCircles(String(circleId));
+
+    /* ───────── Notification push ───────── */
+try {
+  console.log("[push][join] début envoi");
+
+  const tokens = await getCircleMemberTokens(circleId, user.id);
+  console.log("[push][join] tokens =", tokens);
+
+  const myToken = await getUserToken(user.id);
+  console.log("[push][join] myToken =", myToken);
+
+  const targets = (tokens || []).filter((t) => t && t !== myToken);
+  console.log("[push][join] targets =", targets);
+
+  if (!targets.length) {
+    console.log("[push][join] skipped: no targets");
+  } else {
+    console.log("[push][join] avant sendPush");
+
+    const res = await sendPush({
+      to: targets,
+      title: "Nouveau membre 👋",
+      body: `${publicName} a rejoint le cercle`,
+      data: {
+        type: "member_joined",
+        circleId: String(circleId),
+      },
+    });
+
+    console.log("[push][join] result =", res);
+  }
+} catch (e) {
+  console.log("[push][join] error =", e?.message || e);
+}
+
+    /* UI */
+    setJoinCodeOpen(false);
+    setJoinCodeDraft("");
+
+    Alert.alert("Bienvenue ✓", "Tu as rejoint le Cercle !");
+  } catch (e) {
+    Alert.alert("Rejoindre", e?.message || "Code incorrect.");
+  } finally {
+    setJoiningByCode(false);
+  }
+}, [reloadCircles]);
+
+const renderFeedCard = useCallback(({ item, index }) => {
+  if (!item || item.__empty) {
+    return <View style={{ flex: 1 }} />;
+  }
+
+  return (
+    <FeedCard
+      row={item}
+      palette={pal}
+      onPress={() => {
+        // Toujours aller vers ItemDetailScreen avec l'item le plus récent
+        const matchingItems = (items || []).filter(
+          (it) => normalizeTitleKey(it.title) === item.titleKey
+        );
+        if (!matchingItems.length) return;
+
+        // Prendre le plus récent (déjà trié par created_at desc)
+        const latest = matchingItems[0];
+        navigation.navigate("ItemDetail", {
+          itemId: latest.id,
+          title: latest.title,
+        });
+      }}
+      onShare={() => {
+        const latest = (items || []).find(
+          (it) => normalizeTitleKey(it.title) === item.titleKey
+        );
+        if (!latest) return;
+        openShareForItem(latest);
+      }}
+    />
+  );
+}, [pal, items, navigation, openShareForItem]);
 
   const pal      = palette;
   const bottomPad = FAB_H + tabBarH + 32;
@@ -1714,7 +2086,7 @@ export default function CircleScreen({ navigation }) {
           <TouchableOpacity onPress={() => setCircleHubOpen(true)} style={[S.circleChip, { borderColor: pal.border }]} activeOpacity={0.88}>
             <View style={[S.circleChipDot, { backgroundColor: pal.primary }]} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={S.circleChipName} numberOfLines={1}>{activeCircle?.name || "Mes s"}</Text>
+              <Text style={S.circleChipName} numberOfLines={1}>{activeCircle?.name || "Mes Cercles"}</Text>
               <Text style={S.circleChipMeta} numberOfLines={1}>
                 {members?.length ? `${members.length} membre${members.length > 1 ? "s" : ""}` : "Appuie pour gérer"}
               </Text>
@@ -1973,12 +2345,12 @@ export default function CircleScreen({ navigation }) {
                     <Text style={S.dropItemTxt}>Renommer le Cercle</Text>
                     <MaterialCommunityIcons name="chevron-right" size={16} color={colors.subtext} />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => { setCircleHubOpen(false); Alert.alert("Supprimer le  ?", "Action irréversible.", [{ text: "Annuler", style: "cancel" }, { text: "Supprimer", style: "destructive", onPress: deleteCircle }]); }}
+                  <TouchableOpacity onPress={() => { setCircleHubOpen(false); Alert.alert("Supprimer le Cercle ?", "Action irréversible.", [{ text: "Annuler", style: "cancel" }, { text: "Supprimer", style: "destructive", onPress: deleteCircle }]); }}
                     style={[S.dropItem, { backgroundColor: colors.dangerDim }]} activeOpacity={0.85}>
                     <View style={[S.dropItemIcon, { backgroundColor: "rgba(255,90,90,0.15)" }]}>
                       <MaterialCommunityIcons name="trash-can-outline" size={16} color={colors.danger} />
                     </View>
-                    <Text style={[S.dropItemTxt, { color: colors.danger }]}>Supprimer le </Text>
+                    <Text style={[S.dropItemTxt, { color: colors.danger }]}>Supprimer le Cercle </Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -1987,7 +2359,7 @@ export default function CircleScreen({ navigation }) {
                   <View style={[S.dropItemIcon, { backgroundColor: colors.card }]}>
                     <MaterialCommunityIcons name="logout" size={16} color={colors.text} />
                   </View>
-                  <Text style={S.dropItemTxt}>Quitter le </Text>
+                  <Text style={S.dropItemTxt}>Quitter le Cercle </Text>
                 </TouchableOpacity>
               )}
               <View style={S.hr} />
@@ -2010,7 +2382,16 @@ export default function CircleScreen({ navigation }) {
             <View style={[S.dropSheet, { paddingBottom: Math.max(16, insets.bottom) }]}>
               <Text style={S.dropTitle}>J'ai un code d'invitation</Text>
               <Text style={{ color: colors.subtext, fontSize: 13, marginBottom: 14 }}>Colle le code reçu par SMS ou message.</Text>
-              <TouchableOpacity onPress={async () => { try { const c = await Clipboard.getStringAsync(); if (c) setJoinCodeDraft(c); } catch {} }} style={[S.secondaryBtn, { marginBottom: 10 }]}>
+              <TouchableOpacity // APRÈS
+onPress={async () => {
+  try {
+    const c = await Clipboard.getStringAsync();
+    if (c) {
+      const extracted = normalizeCode(c);
+      setJoinCodeDraft(extracted || c.trim().toUpperCase());
+    }
+  } catch {}
+}}>
                 <MaterialCommunityIcons name="content-paste" size={16} color={colors.text} />
                 <Text style={S.secondaryBtnTxt}>Coller depuis le presse-papier</Text>
               </TouchableOpacity>
@@ -2194,8 +2575,16 @@ const S = StyleSheet.create({
 
   /* Invite sheet */
   inviteSheet:  { backgroundColor: colors.bg, padding: 24, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, borderColor: colors.stroke },
-  codeBlock:    { alignSelf: "stretch", paddingHorizontal: 20, paddingVertical: 16, borderRadius: 16, borderWidth: 1, alignItems: "center" },
-  codeTxt:      { fontWeight: "900", fontSize: 26, letterSpacing: 3 },
+codeBlock: {
+  alignSelf: "stretch",
+  paddingHorizontal: 20,
+  paddingVertical: 20,
+  borderRadius: 20,
+  borderWidth: 1,
+  alignItems: "center",
+  position: "relative",
+  minHeight: 110,
+},  codeTxt:      { fontWeight: "900", fontSize: 26, letterSpacing: 3 },
 
   /* Add sheet */
   addSheet:       { backgroundColor: colors.bg, paddingTop: 20, paddingHorizontal: 16, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderColor: colors.stroke },

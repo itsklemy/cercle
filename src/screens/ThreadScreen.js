@@ -218,25 +218,43 @@ export default function ThreadScreen() {
       );
 
       // Push — seulement si on a un circleId et des tokens
-      if (circleId) {
-        try {
-          const [allTokens, myToken] = await Promise.all([
-            getCircleMemberTokens(circleId),
-            getUserToken(userId),
-          ]);
-          const targets = allTokens.filter((t) => t && t !== myToken);
-          if (targets.length) {
-            await sendPush({
-              to: targets,
-              title: "Nouveau message",
-              body: "1 nouveau message",
-              data: { type: "message", circleId, threadId, messageId: data.id },
-            });
-          }
-        } catch (e) {
-          console.warn("[Thread] push failed:", e?.message);
-        }
-      }
+     // Push — prévenir les autres membres du cercle
+if (circleId) {
+  try {
+    console.log("[push][thread] début envoi");
+
+    const allTokens = await getCircleMemberTokens(circleId, userId);
+    console.log("[push][thread] allTokens =", allTokens);
+
+    const myToken = await getUserToken(userId);
+    console.log("[push][thread] myToken =", myToken);
+
+    const targets = (allTokens || []).filter((t) => t && t !== myToken);
+    console.log("[push][thread] targets =", targets);
+
+    if (!targets.length) {
+      console.log("[push][thread] skipped: no targets");
+    } else {
+      console.log("[push][thread] avant sendPush");
+
+      const res = await sendPush({
+        to: targets,
+        title: "Nouveau message",
+        body: body.slice(0, 80),
+        data: {
+          type: "message",
+          circleId,
+          threadId,
+          messageId: data.id,
+        },
+      });
+
+      console.log("[push][thread] result =", res);
+    }
+  } catch (e) {
+    console.log("[push][thread] error =", e?.message || e);
+  }
+}
     } finally {
       setSending(false);
     }
